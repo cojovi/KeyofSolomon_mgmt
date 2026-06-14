@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEONDECK // Control Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Caveat:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06080f; --bg2:#0a0e1a; --panel:rgba(16,22,38,.72); --panel2:rgba(22,30,52,.85);
+  --line:rgba(0,240,255,.14); --line2:rgba(0,240,255,.32);
+  --txt:#d7e4f5; --dim:#7a8aa6; --faint:#46546e;
+  --cyan:#00f0ff; --blue:#3b82f6; --pink:#ff2d95; --purple:#a78bfa; --lime:#b6ff2e; --amber:#ffb020; --red:#ff4757;
+  --font-d:'Chakra Petch',sans-serif; --font-b:'Rajdhani',sans-serif; --font-m:'Share Tech Mono',monospace; --font-h:'Caveat',cursive;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--txt); font-family:var(--font-b); font-size:16px; min-height:100vh;
+  background-image:
+    radial-gradient(1100px 500px at 85% -10%, rgba(167,139,250,.07), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(0,240,255,.06), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(120,160,255,.025) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(120,160,255,.025) 39px 40px);
+}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(0,240,255,.18);border-radius:4px}
+.shell{display:flex;min-height:100vh}
+/* ---------- sidebar ---------- */
+.side{width:218px;flex-shrink:0;border-right:1px solid var(--line);background:rgba(8,11,20,.92);padding:20px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.logo{font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:2px;color:#fff;margin-bottom:4px}
+.logo span{color:var(--cyan);text-shadow:0 0 12px var(--cyan)}
+.logo small{display:block;font-family:var(--font-m);font-size:10px;color:var(--dim);letter-spacing:3px;margin-top:2px}
+.nav{margin-top:18px;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:var(--dim);text-decoration:none;font-weight:600;font-size:15px;letter-spacing:.6px;border:1px solid transparent;transition:.18s}
+.nav a:hover{color:var(--txt);background:rgba(0,240,255,.05)}
+.nav a.active{color:var(--cyan);background:rgba(0,240,255,.08);border-color:var(--line2);box-shadow:inset 0 0 18px rgba(0,240,255,.06)}
+.nav a .ico{width:18px;text-align:center;font-family:var(--font-m)}
+.side .foot{margin-top:auto;font-family:var(--font-m);font-size:10px;color:var(--faint);line-height:1.8}
+.side .foot a{color:var(--dim)}
+/* ---------- main ---------- */
+main{flex:1;padding:24px 30px 60px;max-width:1300px}
+.topbar{display:flex;gap:14px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+h1.page{font-family:var(--font-d);font-size:24px;font-weight:600;letter-spacing:1.5px;color:#fff}
+h1.page em{color:var(--cyan);font-style:normal}
+.quickadd{flex:1;min-width:280px;display:flex;gap:8px}
+.quickadd input{flex:1}
+input,select,textarea{
+  background:rgba(10,14,26,.9);border:1px solid var(--line);border-radius:8px;color:var(--txt);
+  font-family:var(--font-b);font-size:15px;font-weight:500;padding:9px 12px;outline:none;transition:.18s;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--line2);box-shadow:0 0 0 2px rgba(0,240,255,.1)}
+textarea{resize:vertical;min-height:70px;width:100%}
+label{display:block;font-family:var(--font-m);font-size:10px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;margin:12px 0 4px}
+button{
+  font-family:var(--font-d);font-weight:600;font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px;
+  padding:9px 16px;border:1px solid var(--line2);background:rgba(0,240,255,.08);color:var(--cyan);transition:.18s;text-transform:uppercase;
+}
+button:hover{background:rgba(0,240,255,.16);box-shadow:0 0 14px rgba(0,240,255,.25)}
+button.ghost{border-color:rgba(122,138,166,.3);background:transparent;color:var(--dim)}
+button.ghost:hover{color:var(--txt);box-shadow:none;border-color:var(--dim)}
+button.pink{border-color:rgba(255,45,149,.4);background:rgba(255,45,149,.1);color:var(--pink)}
+button.pink:hover{background:rgba(255,45,149,.2);box-shadow:0 0 14px rgba(255,45,149,.25)}
+button.lime{border-color:rgba(182,255,46,.35);background:rgba(182,255,46,.08);color:var(--lime)}
+button.lime:hover{background:rgba(182,255,46,.16);box-shadow:0 0 14px rgba(182,255,46,.2)}
+button.danger{border-color:rgba(255,71,87,.4);background:rgba(255,71,87,.08);color:var(--red)}
+button.sm{padding:5px 10px;font-size:11px}
+/* ---------- cards & panels ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;backdrop-filter:blur(8px)}
+.grid{display:grid;gap:14px}
+.grid.cols4{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.grid.cols3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.statcard{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.statcard .num{font-family:var(--font-d);font-size:38px;font-weight:700;line-height:1}
+.statcard .lbl{font-family:var(--font-m);font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-top:6px}
+.statcard::after{content:"";position:absolute;inset:auto 0 0 0;height:2px;background:linear-gradient(90deg,transparent,var(--c,var(--cyan)),transparent);opacity:.8}
+.statcard .num{color:var(--c,var(--cyan));text-shadow:0 0 18px color-mix(in srgb,var(--c,var(--cyan)) 50%,transparent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;transition:.18s;position:relative}
+.card:hover{border-color:var(--line2);transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.45),0 0 18px rgba(0,240,255,.06)}
+.card h3{font-family:var(--font-d);font-size:16px;font-weight:600;color:#fff;margin-bottom:4px}
+.card .desc{color:var(--dim);font-size:14px;line-height:1.45;margin-bottom:8px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.spread{justify-content:space-between}
+/* badges */
+.badge{display:inline-block;font-family:var(--font-m);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:5px;border:1px solid}
+.b-todo{color:var(--blue);border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08)}
+.b-in_progress,.b-active{color:var(--cyan);border-color:rgba(0,240,255,.4);background:rgba(0,240,255,.07)}
+.b-waiting,.b-paused{color:var(--amber);border-color:rgba(255,176,32,.4);background:rgba(255,176,32,.08)}
+.b-blocked{color:var(--red);border-color:rgba(255,71,87,.5);background:rgba(255,71,87,.1)}
+.b-done,.b-completed{color:var(--lime);border-color:rgba(182,255,46,.4);background:rgba(182,255,46,.08)}
+.b-planning,.b-captured{color:var(--purple);border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.08)}
+.b-reviewing{color:var(--cyan);border-color:rgba(0,240,255,.4);background:rgba(0,240,255,.07)}
+.b-possible{color:var(--lime);border-color:rgba(182,255,46,.4);background:rgba(182,255,46,.08)}
+.b-converted{color:var(--dim);border-color:rgba(122,138,166,.4)}
+.b-archived{color:var(--faint);border-color:rgba(70,84,110,.5)}
+.b-urgent{color:#fff;border-color:var(--pink);background:rgba(255,45,149,.25);animation:pulse 1.6s infinite}
+.b-high{color:var(--pink);border-color:rgba(255,45,149,.45);background:rgba(255,45,149,.08)}
+.b-medium{color:var(--amber);border-color:rgba(255,176,32,.4);background:rgba(255,176,32,.07)}
+.b-low{color:var(--dim);border-color:rgba(122,138,166,.35)}
+.b-agent{color:var(--purple);border-color:rgba(167,139,250,.45);background:rgba(167,139,250,.1)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,45,149,.4)}50%{box-shadow:0 0 10px 2px rgba(255,45,149,.55)}}
+.tag{font-family:var(--font-m);font-size:10px;color:var(--cyan);opacity:.75}
+/* progress */
+.prog{height:7px;background:rgba(0,240,255,.08);border-radius:4px;overflow:hidden;margin:8px 0 4px;border:1px solid rgba(0,240,255,.12)}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:4px;box-shadow:0 0 10px rgba(0,240,255,.5);transition:width .6s ease}
+/* filter bar */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filters input[type=search]{min-width:220px}
+.filters select{min-width:120px}
+/* task list rows */
+.trow{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;transition:.15s}
+.trow:hover{border-color:var(--line2)}
+.trow .t-title{flex:1;font-weight:600;font-size:16px;color:#fff;cursor:pointer}
+.trow .t-title small{display:block;color:var(--dim);font-weight:500;font-size:13px}
+.trow.done .t-title{color:var(--faint);text-decoration:line-through}
+.trow select.status{font-family:var(--font-m);font-size:11px;padding:5px 8px}
+.chk{width:20px;height:20px;border:1px solid var(--line2);border-radius:5px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:transparent;transition:.15s;background:rgba(0,240,255,.04)}
+.chk.on{color:var(--lime);border-color:var(--lime);box-shadow:0 0 8px rgba(182,255,46,.4)}
+.due{font-family:var(--font-m);font-size:11px;color:var(--dim)}
+.due.over{color:var(--red);text-shadow:0 0 8px rgba(255,71,87,.6)}
+.due.soon{color:var(--amber)}
+/* ideas */
+.idea-card{background:linear-gradient(160deg,rgba(20,18,38,.9),rgba(12,16,30,.9));border:1px solid rgba(167,139,250,.25);border-radius:12px;padding:16px;cursor:pointer;transition:.18s}
+.idea-card:hover{border-color:rgba(167,139,250,.55);transform:translateY(-2px);box-shadow:0 0 22px rgba(167,139,250,.12)}
+.idea-card h3{font-family:var(--font-h);font-size:24px;font-weight:600;color:#e9ddff;margin-bottom:6px}
+.idea-card .body{font-family:var(--font-h);font-size:18px;color:#b9a8e8;line-height:1.3;margin-bottom:10px}
+/* feed */
+.feeditem{display:flex;gap:12px;padding:12px 4px;border-bottom:1px dashed rgba(0,240,255,.1)}
+.feeditem .who{font-family:var(--font-m);font-size:10px;letter-spacing:1px;padding:3px 7px;border-radius:4px;height:fit-content;white-space:nowrap}
+.who.user{color:var(--cyan);border:1px solid rgba(0,240,255,.3)}
+.who.agent{color:var(--purple);border:1px solid rgba(167,139,250,.4)}
+.who.system{color:var(--dim);border:1px solid rgba(122,138,166,.3)}
+.feeditem .body{flex:1;font-size:15px;line-height:1.45}
+.feeditem .meta{font-family:var(--font-m);font-size:10px;color:var(--faint);margin-top:3px}
+/* drawer */
+.drawer-veil{position:fixed;inset:0;background:rgba(3,5,10,.6);backdrop-filter:blur(2px);z-index:40;opacity:0;pointer-events:none;transition:.25s}
+.drawer-veil.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-560px;width:540px;max-width:95vw;height:100vh;background:var(--bg2);border-left:1px solid var(--line2);z-index:50;transition:right .28s cubic-bezier(.2,.8,.2,1);overflow-y:auto;padding:24px;box-shadow:-20px 0 60px rgba(0,0,0,.6)}
+.drawer.open{right:0}
+.drawer h2{font-family:var(--font-d);font-size:19px;color:#fff;letter-spacing:1px}
+.drawer .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.note-bubble{background:rgba(14,20,36,.8);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.note-bubble.agent_update{border-left-color:var(--purple)}
+.note-bubble.blocker{border-left-color:var(--red)}
+.note-bubble.progress{border-left-color:var(--lime)}
+.note-bubble.decision{border-left-color:var(--amber)}
+.note-bubble .nb-body{font-size:15px;line-height:1.4}
+.note-bubble .nb-meta{font-family:var(--font-m);font-size:10px;color:var(--faint);margin-top:4px}
+.att-row{display:flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:14px}
+.att-row a{color:var(--cyan);text-decoration:none}
+.range-row{display:flex;align-items:center;gap:12px}
+input[type=range]{flex:1;accent-color:var(--cyan)}
+/* toast */
+#toasts{position:fixed;bottom:20px;right:20px;z-index:99;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:11px 16px;font-family:var(--font-d);font-size:13px;letter-spacing:.5px;color:var(--cyan);box-shadow:0 0 20px rgba(0,240,255,.15);animation:slidein .25s}
+.toast.err{color:var(--red);border-color:rgba(255,71,87,.5);box-shadow:0 0 20px rgba(255,71,87,.15)}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}}
+.empty{color:var(--faint);font-family:var(--font-m);font-size:12px;letter-spacing:1px;padding:30px;text-align:center;border:1px dashed rgba(70,84,110,.4);border-radius:10px}
+.section-title{font-family:var(--font-m);font-size:11px;letter-spacing:2.5px;color:var(--dim);text-transform:uppercase;margin:26px 0 12px;display:flex;align-items:center;gap:10px}
+.section-title::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+.mono{font-family:var(--font-m);font-size:12px;color:var(--dim)}
+code.tok{background:rgba(0,240,255,.07);border:1px solid var(--line);padding:3px 8px;border-radius:6px;font-family:var(--font-m);font-size:12px;color:var(--cyan)}
+@media(max-width:860px){.side{display:none}main{padding:16px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="logo">NEON<span>DECK</span><small>CONTROL PANEL · β1</small></div>
+    <nav class="nav" id="nav">
+      <a href="#/overview" data-r="overview"><span class="ico">◈</span> Overview</a>
+      <a href="#/projects" data-r="projects"><span class="ico">▣</span> Projects</a>
+      <a href="#/tasks" data-r="tasks"><span class="ico">☰</span> Tasks</a>
+      <a href="#/ideas" data-r="ideas"><span class="ico">✦</span> Ideas</a>
+      <a href="#/activity" data-r="activity"><span class="ico">≋</span> Activity</a>
+      <a href="#/agent" data-r="agent"><span class="ico">⌬</span> Agent</a>
+      <a href="#/settings" data-r="settings"><span class="ico">⚙</span> Settings</a>
+    </nav>
+    <div class="foot">
+      <a href="/dashboard" target="_blank">→ LIVE DASHBOARD</a><br>
+      API: <span id="foot-api">/api/v1</span><br>
+      <span id="foot-status">●</span> <span id="foot-conn">connecting…</span>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div class="drawer-veil" id="veil" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer"></div>
+<div id="toasts"></div>
+
+<script>
+/* ================= API layer ================= */
+let TOKEN = null, API = "/api/v1";
+async function boot(){
+  try{
+    const r = await fetch("/ui-config"); const j = await r.json();
+    TOKEN = j.data.token; API = j.data.apiBase;
+  }catch(e){ toast("Could not load /ui-config — is the server running?", true); }
+  connectSSE();
+  route();
+}
+async function api(path, opts={}){
+  const r = await fetch(API+path, {
+    ...opts,
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+TOKEN, ...(opts.headers||{}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json();
+  if(!j.success){ throw new Error(j.error?.message || "API error"); }
+  return j.data;
+}
+function toast(msg, err=false){
+  const t=document.createElement("div"); t.className="toast"+(err?" err":""); t.textContent=msg;
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+/* SSE live refresh */
+let sse, sseRetry=0;
+function connectSSE(){
+  try{
+    sse = new EventSource(API+"/events?token="+encodeURIComponent(TOKEN));
+    sse.addEventListener("connected", ()=>{ setConn(true); sseRetry=0; });
+    sse.addEventListener("data-changed", ()=>{ if(!drawerOpen) route(true); });
+    sse.onerror = ()=>{ setConn(false); sse.close(); setTimeout(connectSSE, Math.min(15000, 1500*(++sseRetry))); };
+  }catch(e){ setConn(false); }
+}
+function setConn(ok){
+  document.getElementById("foot-status").style.color = ok ? "var(--lime)" : "var(--red)";
+  document.getElementById("foot-conn").textContent = ok ? "live" : "reconnecting…";
+}
+/* ================= helpers ================= */
+const esc = s => (s??"").toString().replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDate = s => s ? new Date(s).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "";
+const fmtDT = s => s ? new Date(s).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "";
+const ago = s => { if(!s) return ""; const d=(Date.now()-new Date(s))/1000;
+  if(d<60) return "just now"; if(d<3600) return Math.floor(d/60)+"m ago"; if(d<86400) return Math.floor(d/3600)+"h ago"; return Math.floor(d/86400)+"d ago"; };
+const badge = (v)=> v?`<span class="badge b-${esc(v)}">${esc(v.replace(/_/g," "))}</span>`:"";
+const tagchips = t => (t||[]).map(x=>`<span class="tag">#${esc(x)}</span>`).join(" ");
+const dueHtml = (d,status)=>{ if(!d) return ""; const over=new Date(d)<new Date()&&!["done","archived","completed"].includes(status);
+  const soon=!over&&(new Date(d)-new Date())<3*864e5;
+  return `<span class="due ${over?"over":soon?"soon":""}">⏱ ${fmtDate(d)}${over?" OVERDUE":""}</span>`; };
+/* ================= router ================= */
+const MAIN = document.getElementById("main");
+window.addEventListener("hashchange", ()=>route());
+function curRoute(){ return (location.hash||"#/overview").split("/")[1]||"overview"; }
+async function route(soft=false){
+  const r = curRoute();
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active", a.dataset.r===r));
+  try{
+    if(r==="overview") await viewOverview();
+    else if(r==="projects") await viewProjects();
+    else if(r==="tasks") await viewTasks();
+    else if(r==="ideas") await viewIdeas();
+    else if(r==="activity") await viewActivity();
+    else if(r==="agent") await viewAgent();
+    else if(r==="settings") await viewSettings();
+  }catch(e){ if(!soft) MAIN.innerHTML=`<div class="empty">⚠ ${esc(e.message)}</div>`; }
+}
+/* filter state survives re-render */
+const F = { projects:{q:"",status:"",priority:""}, tasks:{q:"",status:"",area:"",priority:""}, ideas:{q:"",status:"",category:""}, activity:{parentType:"",createdBy:""} };
+function qs(obj){ const p=Object.entries(obj).filter(([k,v])=>v).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join("&"); return p?("?"+p):""; }
+
+/* ================= OVERVIEW ================= */
+async function viewOverview(){
+  const d = await api("/dashboard/state");
+  const today = [...d.tasks.dueSoon, ...d.tasks.blocked].slice(0,6);
+  const recent = d.recentNotes.slice(0,6);
+  MAIN.innerHTML = `
+  <div class="topbar">
+    <h1 class="page">COMMAND <em>OVERVIEW</em></h1>
+    <div class="quickadd">
+      <input id="qa-input" placeholder="Quick add… try: fix garage sensor !high @home  (or just a title)" onkeydown="if(event.key==='Enter')quickAdd('task')">
+      <button onclick="quickAdd('task')">+ Task</button>
+      <button class="pink" onclick="quickAdd('idea')">+ Idea</button>
+    </div>
+  </div>
+  <div class="grid cols4">
+    <div class="statcard" style="--c:var(--cyan)"><div class="num">${d.summary.activeProjects}</div><div class="lbl">Active Projects</div></div>
+    <div class="statcard" style="--c:var(--blue)"><div class="num">${d.summary.openTasks}</div><div class="lbl">Open Tasks</div></div>
+    <div class="statcard" style="--c:var(--red)"><div class="num">${d.summary.blockedItems}</div><div class="lbl">Blocked</div></div>
+    <div class="statcard" style="--c:var(--purple)"><div class="num">${d.summary.ideas}</div><div class="lbl">Ideas</div></div>
+  </div>
+  <div class="section-title">Today & At-Risk</div>
+  ${today.length? today.map(t=>taskRow(t)).join("") : `<div class="empty">NOTHING URGENT — CLEAR SKIES</div>`}
+  <div class="section-title">Recently Updated</div>
+  <div class="panel">${recent.map(n=>feedItem(n)).join("")||`<div class="empty">NO ACTIVITY YET</div>`}</div>`;
+}
+async function quickAdd(kind){
+  const inp = document.getElementById("qa-input")||document.getElementById("qa-idea");
+  let text = inp.value.trim(); if(!text) return;
+  // parse !priority and @area tokens
+  let priority, area;
+  text = text.replace(/!(urgent|high|medium|low)\b/i,(m,p)=>{priority=p.toLowerCase();return"";});
+  text = text.replace(/@(\w+)/,(m,a)=>{area=a;return"";});
+  text = text.replace(/\s+/g," ").trim();
+  try{
+    if(kind==="task") await api("/tasks",{method:"POST",body:{title:text,priority,area}});
+    else await api("/ideas",{method:"POST",body:{title:text,priority:priority==="urgent"?"high":priority,category:area}});
+    inp.value=""; toast((kind==="task"?"Task":"Idea")+" captured ⚡"); route(true);
+  }catch(e){ toast(e.message,true); }
+}
+/* ================= PROJECTS ================= */
+async function viewProjects(){
+  const f=F.projects;
+  const list = await api("/projects"+qs({q:f.q,status:f.status,priority:f.priority}));
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">PRO<em>JECTS</em></h1>
+    <button onclick="openProjectForm()">+ New Project</button></div>
+  <div class="filters">
+    <input type="search" placeholder="Search projects…" value="${esc(f.q)}" oninput="F.projects.q=this.value;debounced(viewProjects)">
+    <select onchange="F.projects.status=this.value;viewProjects()">
+      <option value="">all statuses</option>${["planning","active","paused","blocked","completed","archived"].map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+    <select onchange="F.projects.priority=this.value;viewProjects()">
+      <option value="">all priorities</option>${["low","medium","high","urgent"].map(s=>`<option ${f.priority===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+  </div>
+  <div class="grid cols3">
+    ${list.map(p=>`
+      <div class="card" onclick="openProject('${p.id}')">
+        <div class="row spread"><h3>${esc(p.title)}</h3>${badge(p.priority)}</div>
+        <div class="desc">${esc(p.shortDescription||"")}</div>
+        <div class="prog"><i style="width:${p.progressPercent}%"></i></div>
+        <div class="row spread">
+          <div class="row">${badge(p.status)}${p.category?`<span class="tag">[${esc(p.category)}]</span>`:""}</div>
+          <span class="mono">${p.progressPercent}% · ${ago(p.updatedAt)}</span>
+        </div>
+        <div class="row" style="margin-top:6px">${tagchips(p.tags)}</div>
+      </div>`).join("") || `<div class="empty">NO PROJECTS MATCH</div>`}
+  </div>`;
+}
+async function openProject(id){
+  const p = await api("/projects/"+id);
+  openDrawer(`
+    <div class="row spread"><h2>EDIT PROJECT</h2><button class="ghost sm" onclick="closeDrawer()">✕ CLOSE</button></div>
+    <label>Title</label><input id="f-title" value="${esc(p.title)}" style="width:100%">
+    <label>Short description</label><input id="f-short" value="${esc(p.shortDescription||"")}" style="width:100%">
+    <label>Long description</label><textarea id="f-long">${esc(p.longDescription||"")}</textarea>
+    <div class="grid2">
+      <div><label>Status</label><select id="f-status" style="width:100%">${["planning","active","paused","blocked","completed","archived"].map(s=>`<option ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Priority</label><select id="f-priority" style="width:100%"><option value="">—</option>${["low","medium","high","urgent"].map(s=>`<option ${p.priority===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Category</label><input id="f-category" value="${esc(p.category||"")}" style="width:100%"></div>
+      <div><label>Due date</label><input id="f-due" type="date" value="${(p.dueDate||"").slice(0,10)}" style="width:100%"></div>
+    </div>
+    <label>Progress — <span id="prog-val">${p.progressPercent}</span>%</label>
+    <div class="range-row"><input type="range" id="f-progress" min="0" max="100" value="${p.progressPercent}" oninput="document.getElementById('prog-val').textContent=this.value"></div>
+    <label>Tags (comma separated)</label><input id="f-tags" value="${esc((p.tags||[]).join(", "))}" style="width:100%">
+    <div class="row" style="margin-top:16px">
+      <button onclick="saveProject('${p.id}')">💾 Save</button>
+      <button class="danger" onclick="archiveItem('projects','${p.id}')">⌫ Archive</button>
+    </div>
+    ${notesSection("project", p)}
+    ${attachSection("project", p)}
+  `);
+}
+function openProjectForm(){
+  openDrawer(`
+    <div class="row spread"><h2>NEW PROJECT</h2><button class="ghost sm" onclick="closeDrawer()">✕</button></div>
+    <label>Title</label><input id="f-title" style="width:100%">
+    <label>Short description</label><input id="f-short" style="width:100%">
+    <div class="grid2">
+      <div><label>Status</label><select id="f-status" style="width:100%">${["planning","active","paused","blocked"].map(s=>`<option>${s}</option>`).join("")}</select></div>
+      <div><label>Priority</label><select id="f-priority" style="width:100%"><option value="">—</option><option>low</option><option>medium</option><option>high</option><option>urgent</option></select></div>
+      <div><label>Category</label><input id="f-category" style="width:100%"></div>
+      <div><label>Due date</label><input id="f-due" type="date" style="width:100%"></div>
+    </div>
+    <label>Tags</label><input id="f-tags" style="width:100%">
+    <div class="row" style="margin-top:16px"><button onclick="saveProject(null)">⚡ Create</button></div>
+  `);
+}
+async function saveProject(id){
+  const body = {
+    title: gv("f-title"), shortDescription: gv("f-short"), longDescription: gv("f-long"),
+    status: gv("f-status"), priority: gv("f-priority"), category: gv("f-category"),
+    dueDate: gv("f-due")||"", tags: gv("f-tags"),
+  };
+  if(document.getElementById("f-progress")) body.progressPercent = Number(gv("f-progress"));
+  try{
+    if(id) await api("/projects/"+id,{method:"PATCH",body});
+    else await api("/projects",{method:"POST",body});
+    toast("Project saved"); closeDrawer(); viewProjects();
+  }catch(e){ toast(e.message,true); }
+}
+/* ================= TASKS ================= */
+function taskRow(t){
+  return `<div class="trow ${t.status==="done"?"done":""}">
+    <div class="chk ${t.status==="done"?"on":""}" onclick="toggleDone('${t.id}','${t.status}')">✓</div>
+    <div class="t-title" onclick="openTask('${t.id}')">${esc(t.title)}
+      <small>${t.area?`[${esc(t.area)}] `:""}${tagchips(t.tags)}</small></div>
+    ${t.agentCandidate?`<span class="badge b-agent" title="agent candidate">⌬ AGENT</span>`:""}
+    ${badge(t.priority)}
+    ${dueHtml(t.dueDate,t.status)}
+    <select class="status" onchange="setTaskStatus('${t.id}',this.value)">
+      ${["todo","in_progress","waiting","blocked","done","archived"].map(s=>`<option ${t.status===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+  </div>`;
+}
+async function viewTasks(){
+  const f=F.tasks;
+  const list = await api("/tasks"+qs({q:f.q,status:f.status,area:f.area,priority:f.priority}));
+  const areas=[...new Set(list.map(t=>t.area).filter(Boolean))];
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">TASK <em>QUEUE</em></h1>
+    <div class="quickadd"><input id="qa-input" placeholder="Quick add task…  !urgent @coding" onkeydown="if(event.key==='Enter')quickAdd('task')"><button onclick="quickAdd('task')">+ Add</button></div>
+    <button onclick="openTaskForm()">+ Full Form</button></div>
+  <div class="filters">
+    <input type="search" placeholder="Search tasks…" value="${esc(f.q)}" oninput="F.tasks.q=this.value;debounced(viewTasks)">
+    <select onchange="F.tasks.status=this.value;viewTasks()"><option value="">all statuses</option>${["todo","in_progress","waiting","blocked","done","archived"].map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("")}</select>
+    <select onchange="F.tasks.area=this.value;viewTasks()"><option value="">all areas</option>${areas.map(a=>`<option ${f.area===a?"selected":""}>${a}</option>`).join("")}</select>
+    <select onchange="F.tasks.priority=this.value;viewTasks()"><option value="">all priorities</option>${["low","medium","high","urgent"].map(s=>`<option ${f.priority===s?"selected":""}>${s}</option>`).join("")}</select>
+  </div>
+  ${list.map(taskRow).join("") || `<div class="empty">NO TASKS MATCH</div>`}`;
+}
+async function toggleDone(id,status){
+  try{
+    if(status==="done") await api("/tasks/"+id,{method:"PATCH",body:{status:"todo"}});
+    else await api("/tasks/"+id+"/complete",{method:"POST"});
+    route(true);
+  }catch(e){ toast(e.message,true); }
+}
+async function setTaskStatus(id,status){
+  try{ await api("/tasks/"+id,{method:"PATCH",body:{status}}); toast("Status → "+status); route(true);}catch(e){toast(e.message,true);}
+}
+async function openTask(id){
+  const t = await api("/tasks/"+id);
+  openDrawer(`
+    <div class="row spread"><h2>EDIT TASK</h2><button class="ghost sm" onclick="closeDrawer()">✕ CLOSE</button></div>
+    <label>Title</label><input id="f-title" value="${esc(t.title)}" style="width:100%">
+    <label>Description</label><textarea id="f-desc">${esc(t.description||"")}</textarea>
+    <div class="grid2">
+      <div><label>Status</label><select id="f-status" style="width:100%">${["todo","in_progress","waiting","blocked","done","archived"].map(s=>`<option ${t.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Priority</label><select id="f-priority" style="width:100%"><option value="">—</option>${["low","medium","high","urgent"].map(s=>`<option ${t.priority===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Area</label><input id="f-area" value="${esc(t.area||"")}" style="width:100%"></div>
+      <div><label>Due date</label><input id="f-due" type="date" value="${(t.dueDate||"").slice(0,10)}" style="width:100%"></div>
+    </div>
+    <label>Tags</label><input id="f-tags" value="${esc((t.tags||[]).join(", "))}" style="width:100%">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px">
+      <input type="checkbox" id="f-agent" ${t.agentCandidate?"checked":""} style="width:auto"> AGENT CANDIDATE — let the AI agent work this
+    </label>
+    <div class="row" style="margin-top:16px">
+      <button onclick="saveTask('${t.id}')">💾 Save</button>
+      <button class="lime" onclick="api('/tasks/${t.id}/complete',{method:'POST'}).then(()=>{toast('Done ✦');closeDrawer();viewTasks()})">✓ Mark Done</button>
+      <button class="danger" onclick="archiveItem('tasks','${t.id}')">⌫ Archive</button>
+    </div>
+    ${notesSection("task", t)}
+    ${attachSection("task", t)}
+  `);
+}
+function openTaskForm(){
+  openDrawer(`
+    <div class="row spread"><h2>NEW TASK</h2><button class="ghost sm" onclick="closeDrawer()">✕</button></div>
+    <label>Title</label><input id="f-title" style="width:100%">
+    <label>Description</label><textarea id="f-desc"></textarea>
+    <div class="grid2">
+      <div><label>Status</label><select id="f-status" style="width:100%">${["todo","in_progress","waiting","blocked"].map(s=>`<option>${s}</option>`).join("")}</select></div>
+      <div><label>Priority</label><select id="f-priority" style="width:100%"><option value="">—</option><option>low</option><option>medium</option><option>high</option><option>urgent</option></select></div>
+      <div><label>Area</label><input id="f-area" style="width:100%" placeholder="work / home / coding…"></div>
+      <div><label>Due date</label><input id="f-due" type="date" style="width:100%"></div>
+    </div>
+    <label>Tags</label><input id="f-tags" style="width:100%">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px"><input type="checkbox" id="f-agent" style="width:auto"> AGENT CANDIDATE</label>
+    <div class="row" style="margin-top:16px"><button onclick="saveTask(null)">⚡ Create</button></div>
+  `);
+}
+async function saveTask(id){
+  const body = {
+    title: gv("f-title"), description: gv("f-desc"), status: gv("f-status"),
+    priority: gv("f-priority"), area: gv("f-area"), dueDate: gv("f-due")||"",
+    tags: gv("f-tags"), agentCandidate: document.getElementById("f-agent")?.checked||false,
+  };
+  try{
+    if(id) await api("/tasks/"+id,{method:"PATCH",body});
+    else await api("/tasks",{method:"POST",body});
+    toast("Task saved"); closeDrawer(); viewTasks();
+  }catch(e){ toast(e.message,true); }
+}
+/* ================= IDEAS ================= */
+async function viewIdeas(){
+  const f=F.ideas;
+  const list = await api("/ideas"+qs({q:f.q,status:f.status,category:f.category}));
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">IDEA <em>VAULT</em></h1>
+    <div class="quickadd"><input id="qa-idea" placeholder="Capture an idea in seconds…" onkeydown="if(event.key==='Enter')quickAdd('idea')"><button class="pink" onclick="quickAdd('idea')">✦ Capture</button></div></div>
+  <div class="filters">
+    <input type="search" placeholder="Search ideas…" value="${esc(f.q)}" oninput="F.ideas.q=this.value;debounced(viewIdeas)">
+    <select onchange="F.ideas.status=this.value;viewIdeas()"><option value="">all statuses</option>${["captured","reviewing","possible","converted","archived"].map(s=>`<option ${f.status===s?"selected":""}>${s}</option>`).join("")}</select>
+  </div>
+  <div class="grid cols3">
+    ${list.map(i=>`
+      <div class="idea-card" onclick="openIdea('${i.id}')">
+        <h3>${esc(i.title)}</h3>
+        <div class="body">${esc((i.body||"").slice(0,140))}${(i.body||"").length>140?"…":""}</div>
+        <div class="row spread">
+          <div class="row">${badge(i.status)}${badge(i.priority)}</div>
+          <span class="mono">${ago(i.createdAt)}</span>
+        </div>
+        <div class="row" style="margin-top:6px">${tagchips(i.tags)}${i.category?`<span class="tag">[${esc(i.category)}]</span>`:""}</div>
+      </div>`).join("") || `<div class="empty">NO IDEAS — GO TOUCH A 3D PRINTER</div>`}
+  </div>`;
+}
+async function openIdea(id){
+  const i = await api("/ideas/"+id);
+  openDrawer(`
+    <div class="row spread"><h2>EDIT IDEA</h2><button class="ghost sm" onclick="closeDrawer()">✕ CLOSE</button></div>
+    <label>Title</label><input id="f-title" value="${esc(i.title)}" style="width:100%">
+    <label>Body</label><textarea id="f-body" style="min-height:110px;font-family:var(--font-h);font-size:19px">${esc(i.body||"")}</textarea>
+    <div class="grid2">
+      <div><label>Status</label><select id="f-status" style="width:100%">${["captured","reviewing","possible","converted","archived"].map(s=>`<option ${i.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Priority</label><select id="f-priority" style="width:100%"><option value="">—</option>${["low","medium","high"].map(s=>`<option ${i.priority===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div><label>Category</label><input id="f-category" value="${esc(i.category||"")}" style="width:100%"></div>
+      <div><label>Tags</label><input id="f-tags" value="${esc((i.tags||[]).join(", "))}" style="width:100%"></div>
+    </div>
+    ${i.convertedToId?`<p class="mono" style="margin-top:10px">⤷ converted to ${i.convertedToType} ${i.convertedToId}</p>`:""}
+    <div class="row" style="margin-top:16px">
+      <button onclick="saveIdea('${i.id}')">💾 Save</button>
+      ${i.status!=="converted"?`
+      <button class="lime" onclick="convertIdea('${i.id}','task')">⇒ To Task</button>
+      <button class="lime" onclick="convertIdea('${i.id}','project')">⇒ To Project</button>`:""}
+      <button class="danger" onclick="archiveItem('ideas','${i.id}')">⌫ Archive</button>
+    </div>
+    ${notesSection("idea", i)}
+  `);
+}
+async function saveIdea(id){
+  const body = { title: gv("f-title"), body: gv("f-body"), status: gv("f-status"),
+    priority: gv("f-priority"), category: gv("f-category"), tags: gv("f-tags") };
+  try{ await api("/ideas/"+id,{method:"PATCH",body}); toast("Idea saved"); closeDrawer(); viewIdeas(); }
+  catch(e){ toast(e.message,true); }
+}
+async function convertIdea(id, target){
+  try{
+    const d = await api(`/ideas/${id}/convert-to-${target}`,{method:"POST",body:{}});
+    toast("Converted to "+target+" ⚡"); closeDrawer(); viewIdeas();
+  }catch(e){ toast(e.message,true); }
+}
+/* ================= ACTIVITY ================= */
+function feedItem(n){
+  return `<div class="feeditem">
+    <span class="who ${esc(n.createdBy)}">${esc(n.createdBy)}</span>
+    <div class="body">${esc(n.body)}
+      <div class="meta">${esc(n.type)} · on ${esc(n.parentType)} · ${fmtDT(n.createdAt)}</div></div>
+  </div>`;
+}
+async function viewActivity(){
+  const f=F.activity;
+  const list = await api("/notes"+qs({parentType:f.parentType,createdBy:f.createdBy,limit:80}));
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">ACTIVITY <em>FEED</em></h1></div>
+  <div class="filters">
+    <select onchange="F.activity.parentType=this.value;viewActivity()"><option value="">all parents</option>${["project","task","idea"].map(s=>`<option ${f.parentType===s?"selected":""}>${s}</option>`).join("")}</select>
+    <select onchange="F.activity.createdBy=this.value;viewActivity()"><option value="">everyone</option>${["user","agent","system"].map(s=>`<option ${f.createdBy===s?"selected":""}>${s}</option>`).join("")}</select>
+  </div>
+  <div class="panel">${list.map(feedItem).join("")||`<div class="empty">NO NOTES YET</div>`}</div>`;
+}
+/* ================= AGENT ================= */
+async function viewAgent(){
+  const list = await api("/agent/actions?limit=80");
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">AGENT <em>ACTIVITY</em></h1></div>
+  <div class="panel">
+    ${list.map(a=>`
+      <div class="feeditem">
+        <span class="who agent">⌬ ${esc(a.agentName)}</span>
+        <div class="body"><b style="font-family:var(--font-m);font-size:11px;letter-spacing:1px;color:var(--purple)">${esc(a.actionType.toUpperCase())}</b>
+          ${a.targetType?`<span class="mono">→ ${esc(a.targetType)} ${esc(a.targetId||"")}</span>`:""}<br>
+          ${esc(a.summary)}
+          ${a.details?`<div style="color:var(--dim);font-size:14px;margin-top:2px">${esc(a.details)}</div>`:""}
+          <div class="meta">${fmtDT(a.createdAt)}</div>
+        </div>
+      </div>`).join("") || `<div class="empty">NO AGENT ACTIONS LOGGED YET</div>`}
+  </div>`;
+}
+/* ================= SETTINGS ================= */
+async function viewSettings(){
+  const s = await api("/settings");
+  MAIN.innerHTML = `
+  <div class="topbar"><h1 class="page">SET<em>TINGS</em></h1></div>
+  <div class="panel" style="max-width:640px">
+    <div class="section-title" style="margin-top:0">API Access</div>
+    <p style="margin-bottom:6px">Base URL: <code class="tok">${location.origin}${API}</code></p>
+    <p style="margin-bottom:6px">Token: <code class="tok">${esc(TOKEN)}</code></p>
+    <p class="mono">Header → Authorization: Bearer &lt;token&gt; &nbsp;·&nbsp; configure in .env (LOCAL_API_TOKEN)</p>
+
+    <div class="section-title">Dashboard</div>
+    <label>Refresh interval (seconds, fallback polling)</label>
+    <input id="s-refresh" type="number" min="5" value="${esc(s.dashboardRefreshSeconds)}">
+    <label>Animation speed (0.5 = slow, 1 = normal, 2 = fast)</label>
+    <input id="s-speed" type="number" step="0.1" min="0.1" max="3" value="${esc(s.animationSpeed)}">
+    <label>Reduced motion</label>
+    <select id="s-motion"><option value="false" ${s.reducedMotion==="false"?"selected":""}>off — full animation</option><option value="true" ${s.reducedMotion==="true"?"selected":""}>on — calm mode</option></select>
+    <label>Default dashboard mode</label>
+    <select id="s-mode"><option value="full" ${s.defaultDashboardMode==="full"?"selected":""}>full</option><option value="minimal" ${s.defaultDashboardMode==="minimal"?"selected":""}>minimal</option></select>
+    <div class="row" style="margin-top:16px"><button onclick="saveSettings()">💾 Save Settings</button></div>
+
+    <div class="section-title">Data</div>
+    <div class="row">
+      <button class="ghost" onclick="exportData()">⇩ Export JSON</button>
+      <button class="ghost" onclick="document.getElementById('imp').click()">⇧ Import JSON</button>
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(this.files[0])">
+    </div>
+  </div>`;
+}
+async function saveSettings(){
+  try{
+    await api("/settings",{method:"PATCH",body:{
+      dashboardRefreshSeconds: gv("s-refresh"), animationSpeed: gv("s-speed"),
+      reducedMotion: gv("s-motion"), defaultDashboardMode: gv("s-mode"),
+    }});
+    toast("Settings saved");
+  }catch(e){ toast(e.message,true); }
+}
+async function exportData(){
+  const d = await api("/data/export");
+  const blob = new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+  const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download = "neondeck-export-"+new Date().toISOString().slice(0,10)+".json"; a.click();
+}
+async function importData(file){
+  if(!file) return;
+  try{
+    const d = JSON.parse(await file.text());
+    const r = await api("/data/import",{method:"POST",body:d});
+    toast("Imported: "+JSON.stringify(r.imported));
+  }catch(e){ toast(e.message,true); }
+}
+/* ================= shared drawer pieces ================= */
+let drawerOpen=false;
+function openDrawer(html){
+  document.getElementById("drawer").innerHTML=html;
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("veil").classList.add("open");
+  drawerOpen=true;
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("veil").classList.remove("open");
+  drawerOpen=false;
+}
+function gv(id){ const el=document.getElementById(id); return el?el.value.trim():undefined; }
+async function archiveItem(kind,id){
+  try{ await api(`/${kind}/${id}/archive`,{method:"POST"}); toast("Archived"); closeDrawer(); route(); }
+  catch(e){ toast(e.message,true); }
+}
+function notesSection(parentType, item){
+  const notes = item.notes||[];
+  return `
+  <div class="section-title">Notes & Progress Timeline</div>
+  <div class="row">
+    <select id="n-type" style="width:130px"><option>note</option><option>progress</option><option>decision</option><option>blocker</option></select>
+    <input id="n-body" placeholder="Add a note…" style="flex:1" onkeydown="if(event.key==='Enter')addNote('${parentType}','${item.id}')">
+    <button class="sm" onclick="addNote('${parentType}','${item.id}')">+ ADD</button>
+  </div>
+  <div style="margin-top:12px">
+    ${notes.map(n=>`<div class="note-bubble ${esc(n.type)}">
+        <div class="nb-body">${esc(n.body)}</div>
+        <div class="nb-meta">${esc(n.type)} · ${esc(n.createdBy)} · ${fmtDT(n.createdAt)}</div>
+      </div>`).join("") || `<div class="empty">NO NOTES YET</div>`}
+  </div>`;
+}
+async function addNote(parentType, parentId){
+  const body=gv("n-body"); if(!body) return;
+  try{
+    await api(`/${parentType==="idea"?"ideas":parentType+"s"}/${parentId}/notes`,{method:"POST",body:{body,type:gv("n-type")}});
+    toast("Note added");
+    if(parentType==="project") openProject(parentId);
+    else if(parentType==="task") openTask(parentId);
+    else openIdea(parentId);
+  }catch(e){ toast(e.message,true); }
+}
+function attachSection(parentType, item){
+  const atts = item.attachments||[];
+  return `
+  <div class="section-title">Attachments & Links</div>
+  <div class="row">
+    <input id="a-label" placeholder="Label" style="width:120px">
+    <input id="a-url" placeholder="https://… or /local/file/path" style="flex:1">
+    <button class="sm" onclick="addAttachment('${parentType}','${item.id}')">+ LINK</button>
+  </div>
+  <div style="margin-top:10px">
+    ${atts.map(a=>`<div class="att-row">
+      <span class="mono">[${esc(a.type||"link")}]</span>
+      ${a.url?`<a href="${esc(a.url)}" target="_blank">${esc(a.label||a.url)}</a>`:`<span>${esc(a.label||"")} <span class="mono">${esc(a.filePath||"")}</span></span>`}
+    </div>`).join("") || `<div class="empty">NOTHING ATTACHED</div>`}
+  </div>`;
+}
+async function addAttachment(parentType, parentId){
+  const val=gv("a-url"); if(!val) return;
+  const isUrl = /^https?:\/\//i.test(val);
+  try{
+    await api(`/${parentType==="idea"?"ideas":parentType+"s"}/${parentId}/attachments`,{method:"POST",
+      body:{label:gv("a-label"), url:isUrl?val:undefined, filePath:isUrl?undefined:val, type:isUrl?"link":"file"}});
+    toast("Attached");
+    if(parentType==="project") openProject(parentId); else openTask(parentId);
+  }catch(e){ toast(e.message,true); }
+}
+/* debounce for search */
+let _deb;
+function debounced(fn){ clearTimeout(_deb); _deb=setTimeout(fn, 300); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+boot();
+</script>
+</body>
+</html>

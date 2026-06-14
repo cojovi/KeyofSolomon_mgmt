@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    @apply h-full bg-bg text-[#dbe8fa] font-body;
+    scroll-behavior: smooth;
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-line2 rounded-full; }
+}
+
+@layer components {
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono tracking-widest uppercase border;
+  }
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-display font-semibold
+           border transition-all duration-150 cursor-pointer;
+  }
+  .btn-cyan {
+    @apply btn border-cyan/40 text-cyan hover:bg-cyan/10 hover:border-cyan/70;
+  }
+  .btn-ghost {
+    @apply btn border-line text-dim hover:text-[#dbe8fa] hover:border-line2;
+  }
+  .btn-danger {
+    @apply btn border-nred/40 text-nred hover:bg-nred/10;
+  }
+  .btn-lime {
+    @apply btn border-lime/40 text-lime hover:bg-lime/10;
+  }
+  .btn-pink {
+    @apply btn border-pink/40 text-pink hover:bg-pink/10;
+  }
+  .input {
+    @apply w-full bg-panel border border-line rounded-lg px-3 py-2 text-sm text-[#dbe8fa]
+           font-body placeholder:text-faint focus:outline-none focus:border-cyan/50 transition-colors;
+  }
+  .select {
+    @apply input appearance-none cursor-pointer;
+  }
+  .card {
+    @apply bg-panel border border-line rounded-2xl relative overflow-hidden;
+  }
+  .card::before {
+    content: "";
+    @apply absolute top-0 left-4 right-4 h-px;
+    background: linear-gradient(90deg, transparent, rgba(0,240,255,0.3), transparent);
+  }
+  .zone-title {
+    @apply font-mono text-[11px] tracking-[3px] text-dim uppercase flex items-center gap-2;
+  }
+  .zone-dot {
+    @apply w-1.5 h-1.5 rounded-full animate-pulse-slow;
+  }
+  .panel-header {
+    @apply flex items-center justify-between gap-4 mb-4;
+  }
+  .progress-bar {
+    @apply h-2 rounded-full bg-cyan/10 border border-cyan/15 overflow-hidden relative;
+  }
+  .progress-fill {
+    @apply h-full rounded-full relative overflow-hidden;
+    background: linear-gradient(90deg, #3b82f6, #00f0ff);
+    box-shadow: 0 0 12px rgba(0,240,255,0.55);
+    transition: width 1s ease;
+  }
+  .progress-fill::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    animation: shimmer 2.8s infinite;
+  }
+}
+
+/* Reduced motion */
+.reduced * { animation: none !important; transition: none !important; }
