@@ -30,7 +30,7 @@ const day = (offsetDays: number) => new Date(Date.now() + offsetDays * 86400_000
 const projects = [
   {
     id: makeId("proj"), title: "Build Task Dashboard App",
-    shortDescription: "NEONDECK itself — command center for tasks, projects, ideas, and agents.",
+    shortDescription: "Key of Solomon itself — command center for tasks, projects, ideas, and agents.",
     longDescription: "Local-first task/project/idea system with a live animated dashboard for a dedicated screen, plus an agent-safe API for OpenClaw.",
     category: "coding", status: "active", priority: "high", progressPercent: 72,
     tags: JSON.stringify(["dashboard", "typescript", "sqlite"]),

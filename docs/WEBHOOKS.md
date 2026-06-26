@@ -36,7 +36,7 @@ Required: `summary`. Optional: `agentName`, `actionType`, `targetType`, `targetI
 
 ## Planned (not implemented)
 
-- **Outbound webhooks** — NEONDECK POSTs to your URL on events, signed with HMAC-SHA256.
+- **Outbound webhooks** — Key of Solomon POSTs to your URL on events, signed with HMAC-SHA256.
 - **Per-webhook tokens** so the main API token never leaves the box.
 - **Inbound email-to-task** gateway.
 

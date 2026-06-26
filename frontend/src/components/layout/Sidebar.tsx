@@ -20,7 +20,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-line">
         <div className="font-display font-bold text-xl tracking-widest text-white">
-          NEON<span className="text-cyan" style={{ textShadow: "0 0 16px #00f0ff" }}>DECK</span>
+          KEY OF <span className="text-cyan" style={{ textShadow: "0 0 16px #00f0ff" }}>SOLOMON</span>
         </div>
         <div className="font-mono text-[9px] tracking-[3px] text-faint mt-0.5">COMMAND CENTER</div>
       </div>

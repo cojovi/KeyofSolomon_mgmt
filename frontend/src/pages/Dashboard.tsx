@@ -1,252 +1,417 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Zap, Activity, AlertTriangle, CheckCircle, Clock, Layers } from "lucide-react";
+import {
+  Bot, Zap, Activity, AlertTriangle, CheckCircle2, CalendarClock, Hourglass,
+  ListTodo, Lightbulb, FolderKanban, Sparkles, ArrowRight,
+  Code2, Briefcase, Home, Box, FolderClock, Flame,
+} from "lucide-react";
 import { api, connectSSE } from "../lib/api";
-import type { DashboardState, Task, Project, Note, AgentAction, AISummary, Settings } from "../lib/types";
-import { relativeTime, isOverdue, isDueSoon, statusColor } from "../lib/utils";
+import type {
+  DashboardState, Task, Project, Idea, Note, AgentAction,
+  AISummary, Settings, UpcomingDeadline, TickerItem,
+} from "../lib/types";
+import { relativeTime } from "../lib/utils";
 
-// ─── Animated Ticker ─────────────────────────────────────────────────────────
+// ─── tokens ─────────────────────────────────────────────────────────────────
 
-function Ticker({ items }: { items: { type: string; label: string; text: string }[] }) {
-  const looped = [...items, ...items]; // double for seamless loop
+const C = {
+  cyan: "#00f0ff", blue: "#3b82f6", pink: "#ff2d95", purple: "#a78bfa",
+  lime: "#b6ff2e", amber: "#ffb020", red: "#ff4757", dim: "#7e90ad", faint: "#45536d",
+};
+
+const STATUS_ACCENT: Record<string, string> = {
+  active: C.cyan, blocked: C.red, paused: C.amber,
+  planning: C.purple, completed: C.lime, archived: C.faint,
+};
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: C.pink, high: C.red, medium: C.amber, low: C.dim,
+};
+const CAT_ICON: Record<string, React.ElementType> = {
+  coding: Code2, business: Briefcase, home: Home, "3d-printing": Box,
+};
+const IDEA_STATUS_COLOR: Record<string, string> = {
+  possible: C.lime, reviewing: C.cyan, captured: C.purple, converted: C.faint, archived: C.faint,
+};
+const TICKER_COLOR: Record<string, string> = {
+  urgent: C.pink, overdue: C.red, blocked: C.red, due_soon: C.amber,
+  stale: C.dim, idea: C.purple, agent: C.lime, updated: C.cyan,
+};
+
+type AgentState = "idle" | "working" | "attention" | "error";
+
+// Reduced-motion flows down so AutoScroll can fall back to manual scrolling.
+const ReducedMotionContext = createContext(false);
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * AutoScroll — a self-scrolling viewport for wall displays. When its content
+ * overflows it gently ping-pongs top↔bottom with a pause at each end; it reads
+ * scrollHeight live each frame so it adapts as data refreshes. Pauses on hover
+ * (so you can read), and falls back to a normal scrollbar in reduced-motion.
+ */
+function AutoScroll({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  const reduced = useContext(ReducedMotionContext);
+  const ref = useRef<HTMLDivElement>(null);
+  const hover = useRef(false);
+
+  useEffect(() => {
+    if (reduced) return;
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    let dir = 1;
+    let dwell = 1.4;            // initial pause so a fresh load is readable
+    let last = performance.now();
+    const SPEED = 18;          // px per second
+    const DWELL = 1.6;         // seconds paused at each end
+
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max <= 4) {
+        el.scrollTop = 0;       // nothing to scroll
+      } else if (!hover.current) {
+        if (dwell > 0) {
+          dwell -= dt;
+        } else {
+          el.scrollTop += dir * SPEED * dt;
+          if (el.scrollTop >= max - 0.5) { el.scrollTop = max; dir = -1; dwell = DWELL; }
+          else if (el.scrollTop <= 0.5) { el.scrollTop = 0; dir = 1; dwell = DWELL; }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reduced]);
+
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => { hover.current = true; }}
+      onMouseLeave={() => { hover.current = false; }}
+      className={`flex-1 min-h-0 ${reduced ? "overflow-y-auto" : "overflow-hidden"} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function dueLabel(due?: string): { text: string; cls: string; urgent: boolean } | null {
+  if (!due) return null;
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((startOfDay(new Date(due)) - startOfDay(new Date())) / 86_400_000);
+  if (diff < 0) return { text: `${Math.abs(diff)}d late`, cls: "text-nred", urgent: true };
+  if (diff === 0) return { text: "today", cls: "text-amber", urgent: true };
+  if (diff === 1) return { text: "tomorrow", cls: "text-amber", urgent: false };
+  if (diff <= 7) return { text: `${diff}d`, cls: "text-dim", urgent: false };
+  return { text: relativeTime(due), cls: "text-faint", urgent: false };
+}
+
+function timeStr() {
+  return new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+// ─── small building blocks ────────────────────────────────────────────────────
+
+function Kpi({ label, value, color, icon: Icon, alert }: {
+  label: string; value: number; color: string; icon: React.ElementType; alert?: boolean;
+}) {
+  return (
+    <div className="relative px-4 py-2 rounded-xl bg-panel border border-line overflow-hidden min-w-[112px]">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <Icon size={14} style={{ color }} />
+        <span className="font-mono text-[11px] tracking-[1.5px] text-dim uppercase">{label}</span>
+      </div>
+      <div
+        className="font-display font-bold leading-none"
+        style={{ color, fontSize: "2.3rem", textShadow: `0 0 18px ${color}55` }}
+      >
+        {value}
+      </div>
+      <div className="absolute left-0 right-0 bottom-0 h-[3px]" style={{ background: color, opacity: 0.7, boxShadow: `0 0 10px ${color}` }} />
+      {alert && value > 0 && (
+        <div className="absolute inset-0 pointer-events-none animate-pulse-slow" style={{ boxShadow: `inset 0 0 26px ${color}22` }} />
+      )}
+    </div>
+  );
+}
+
+function Panel({ title, accent, action, children, className }: {
+  title: string; accent: string; action?: React.ReactNode; children: React.ReactNode; className?: string;
+}) {
+  return (
+    <div className={`card flex flex-col min-h-0 ${className ?? ""}`}>
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full animate-pulse-slow" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
+          <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">{title}</span>
+        </div>
+        {action}
+      </div>
+      <AutoScroll className="px-4 pb-3">{children}</AutoScroll>
+    </div>
+  );
+}
+
+function AllLink({ to, color }: { to: string; color: string }) {
+  return (
+    <Link to={to} className="font-mono text-[11px] text-faint hover:opacity-100 opacity-80 flex items-center gap-1 transition-opacity"
+      style={{ color }}>
+      all <ArrowRight size={12} />
+    </Link>
+  );
+}
+
+function Empty({ label }: { label: string }) {
+  return <div className="text-faint font-mono text-[12px] tracking-wide text-center py-6">{label}</div>;
+}
+
+// ─── projects ─────────────────────────────────────────────────────────────────
+
+function ProjectRow({ p }: { p: Project }) {
+  const accent = STATUS_ACCENT[p.status] ?? C.dim;
+  const Icon = CAT_ICON[p.category ?? ""] ?? FolderKanban;
+  const pct = Math.min(100, Math.max(0, p.progressPercent ?? 0));
+  const due = dueLabel(p.dueDate);
+  return (
+    <div className="rounded-xl bg-panel2 border border-line p-3 mb-2.5" style={{ borderLeft: `3px solid ${accent}` }}>
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: `${accent}1f`, border: `1px solid ${accent}55` }}>
+          <Icon size={18} style={{ color: accent }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="font-display font-semibold text-[15px] text-white truncate">{p.title}</div>
+          <div className="text-[12px] text-dim truncate">{p.shortDescription || p.category || "—"}</div>
+        </div>
+        <span className="badge text-[10px]" style={{ color: accent, borderColor: `${accent}66` }}>{p.status}</span>
+      </div>
+      <div className="progress-bar h-2 mt-2.5"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
+      <div className="flex items-center justify-between mt-1.5 font-mono text-[12px]">
+        <span className="text-dim">{pct}%</span>
+        {due && <span className={due.cls}>⏱ {due.text}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── tasks ─────────────────────────────────────────────────────────────────────
+
+function TaskItem({ t, done }: { t: Task; done?: boolean }) {
+  const pc = PRIORITY_COLOR[t.priority ?? ""] ?? "transparent";
+  const due = done ? null : dueLabel(t.dueDate);
+  return (
+    <div className="flex items-start gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.04] transition-colors">
+      <span className="w-2 h-2 rounded-full mt-[7px] flex-shrink-0"
+        style={{ background: pc, boxShadow: pc !== "transparent" ? `0 0 6px ${pc}` : "none" }} />
+      <div className="min-w-0 flex-1">
+        <div className={`text-[14px] leading-snug ${done ? "text-faint line-through" : "text-[#dbe8fa]"}`}>{t.title}</div>
+        <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px] text-faint">
+          {t.area && <span className="uppercase tracking-wide">{t.area}</span>}
+          {t.priority && !done && <span style={{ color: pc }}>{t.priority}</span>}
+          {due && <span className={due.cls}>{due.text}</span>}
+          {t.agentCandidate && !done && <Bot size={12} className="text-purple" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskColumn({ label, icon: Icon, accent, tasks, done, max = 12 }: {
+  label: string; icon: React.ElementType; accent: string; tasks: Task[]; done?: boolean; max?: number;
+}) {
+  return (
+    <div className="flex flex-col min-h-0 rounded-xl bg-panel2 border border-line overflow-hidden"
+      style={{ borderTop: `2px solid ${accent}` }}>
+      <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0 border-b border-line">
+        <Icon size={15} style={{ color: accent }} />
+        <span className="font-mono text-[12px] tracking-[1.5px] uppercase" style={{ color: accent }}>{label}</span>
+        <span className="ml-auto font-display font-bold text-[16px]" style={{ color: accent }}>{tasks.length}</span>
+      </div>
+      <AutoScroll className="px-1.5 py-1">
+        {tasks.length === 0 ? (
+          <div className="text-faint font-mono text-[11px] text-center py-5">clear</div>
+        ) : (
+          <>
+            {tasks.slice(0, max).map((t) => <TaskItem key={t.id} t={t} done={done} />)}
+            {tasks.length > max && (
+              <div className="text-faint font-mono text-[11px] text-center py-1">+{tasks.length - max} more</div>
+            )}
+          </>
+        )}
+      </AutoScroll>
+    </div>
+  );
+}
+
+// ─── ticker ─────────────────────────────────────────────────────────────────────
+
+function Ticker({ items }: { items: TickerItem[] }) {
   if (!items.length) return null;
-
+  const loop = [...items, ...items];
   return (
-    <div className="overflow-hidden border-b border-line h-8 flex items-center bg-panel/60 relative">
-      <div className="absolute left-0 top-0 bottom-0 w-16 z-10"
-        style={{ background: "linear-gradient(to right, #04060c, transparent)" }} />
-      <div className="absolute right-0 top-0 bottom-0 w-16 z-10"
-        style={{ background: "linear-gradient(to left, #04060c, transparent)" }} />
-      <div className="flex gap-10 animate-ticker whitespace-nowrap px-4">
-        {looped.map((item, i) => (
-          <span key={i} className="font-mono text-[11px] flex items-center gap-2">
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-              item.type === "blocked" ? "bg-nred" :
-              item.type === "due_soon" ? "bg-amber" :
-              item.type === "agent" ? "bg-lime" : "bg-cyan"
-            }`} />
-            <span className="text-faint">[{item.label}]</span>
-            <span className="text-dim">{item.text}</span>
-          </span>
-        ))}
+    <div className="relative overflow-hidden border-y border-line bg-[#05080f]/80 h-9 flex items-center flex-shrink-0">
+      <div className="absolute left-0 inset-y-0 w-20 z-10" style={{ background: "linear-gradient(to right,#04060c,transparent)" }} />
+      <div className="absolute right-0 inset-y-0 w-20 z-10" style={{ background: "linear-gradient(to left,#04060c,transparent)" }} />
+      <div className="flex gap-10 whitespace-nowrap animate-ticker px-6">
+        {loop.map((it, i) => {
+          const c = TICKER_COLOR[it.type] ?? C.dim;
+          return (
+            <span key={i} className="flex items-center gap-2 text-[14px]">
+              <span className="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded"
+                style={{ color: c, border: `1px solid ${c}66`, background: `${c}14` }}>{it.label}</span>
+              <span className="text-dim">{it.text}</span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ─── Agent Avatar ─────────────────────────────────────────────────────────────
+// ─── agent ─────────────────────────────────────────────────────────────────────
 
-function AgentAvatar({
-  state, pendingApprovals, lastAction,
-}: {
-  state: "idle" | "working" | "attention" | "error";
-  pendingApprovals: number;
-  lastAction?: AgentAction;
-}) {
-  const colors = {
-    idle: "#7e90ad", working: "#00f0ff", attention: "#ffb020", error: "#ff4757",
+function AgentPanel({ state, actions, pending }: { state: AgentState; actions: AgentAction[]; pending: number }) {
+  const map: Record<AgentState, [string, string]> = {
+    idle: [C.dim, "IDLE"], working: [C.cyan, "WORKING"],
+    attention: [C.amber, "NEEDS ATTENTION"], error: [C.red, "ERROR"],
   };
-  const labels = { idle: "IDLE", working: "WORKING", attention: "NEEDS ATTENTION", error: "ERROR" };
-  const c = colors[state];
-
+  const [c, label] = map[state];
+  const latest = actions[0];
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative w-10 h-10 flex-shrink-0">
-        <div className="absolute inset-0 rounded-full border animate-spin"
-          style={{ borderColor: `${c}30`, borderTopColor: c, animationDuration: "3s" }} />
-        <div className="absolute inset-2 rounded-full flex items-center justify-center"
-          style={{ background: `radial-gradient(circle, ${c}25, transparent)` }}>
-          <Bot size={12} style={{ color: c }} />
+    <div className="card flex flex-col flex-shrink-0">
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full animate-pulse-slow" style={{ background: C.lime, boxShadow: `0 0 8px ${C.lime}` }} />
+          <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">OpenClaw Agent</span>
         </div>
-        {(state === "attention" || state === "error") && (
-          <div className="absolute inset-0 rounded-full animate-ping"
-            style={{ background: `${c}15`, animationDuration: "2s" }} />
-        )}
-        {pendingApprovals > 0 && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber rounded-full flex items-center justify-center">
-            <span className="text-[8px] text-black font-bold">{pendingApprovals}</span>
-          </div>
-        )}
-      </div>
-      <div>
-        <div className="font-mono text-[9px] tracking-widest" style={{ color: c }}>{labels[state]}</div>
-        {lastAction && (
-          <div className="font-mono text-[10px] text-faint truncate max-w-[160px]">{lastAction.summary}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Project Card ─────────────────────────────────────────────────────────────
-
-function ProjectCard({ project }: { project: Project }) {
-  const statusColors: Record<string, string> = {
-    active: "border-l-cyan", blocked: "border-l-nred", paused: "border-l-amber",
-    completed: "border-l-lime", planning: "border-l-purple", archived: "border-l-line",
-  };
-  const pct = Math.min(100, Math.max(0, project.progressPercent ?? 0));
-
-  return (
-    <div className={`card p-3 border-l-2 ${statusColors[project.status] ?? "border-l-line"} flex flex-col gap-2 min-w-0`}>
-      <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="font-display font-semibold text-sm text-[#dbe8fa] truncate">{project.title}</div>
-          {project.shortDescription && (
-            <div className="text-[11px] text-dim truncate mt-0.5">{project.shortDescription}</div>
-          )}
-        </div>
-        <span className={`badge text-[9px] flex-shrink-0 ${statusColor(project.status)}`}>
-          {project.status}
-        </span>
-      </div>
-      {/* Progress bar */}
-      <div className="progress-bar h-1">
-        <div className="progress-fill h-full" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] text-faint">{pct}%</span>
-        {project.dueDate && (
-          <span className={`font-mono text-[10px] ${isOverdue(project.dueDate) ? "text-nred" : isDueSoon(project.dueDate) ? "text-amber" : "text-faint"}`}>
-            {isOverdue(project.dueDate) ? "OVERDUE" : "due"} {relativeTime(project.dueDate)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Task Block ───────────────────────────────────────────────────────────────
-
-function TaskBlock({
-  label, tasks, color, icon: Icon,
-}: {
-  label: string;
-  tasks: Task[];
-  color: string;
-  icon: React.ElementType;
-}) {
-  if (!tasks.length) return null;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon size={11} className={color} />
-        <span className={`font-mono text-[10px] tracking-widest ${color}`}>{label}</span>
-        <span className="font-mono text-[10px] text-faint">({tasks.length})</span>
-      </div>
-      {tasks.slice(0, 5).map((t) => (
-        <div key={t.id} className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-white/3 transition-colors">
-          {t.priority === "urgent" && <span className="w-1 h-1 rounded-full bg-nred flex-shrink-0" />}
-          {t.priority === "high" && <span className="w-1 h-1 rounded-full bg-amber flex-shrink-0" />}
-          <span className="text-[12px] text-[#dbe8fa] truncate flex-1">{t.title}</span>
-          {t.agentCandidate && <Bot size={9} className="text-purple flex-shrink-0" />}
-          {t.dueDate && isOverdue(t.dueDate) && <span className="font-mono text-[9px] text-nred flex-shrink-0">LATE</span>}
-          {t.dueDate && !isOverdue(t.dueDate) && isDueSoon(t.dueDate) && (
-            <span className="font-mono text-[9px] text-amber flex-shrink-0">SOON</span>
-          )}
-        </div>
-      ))}
-      {tasks.length > 5 && (
-        <div className="text-faint font-mono text-[10px] pl-2">+{tasks.length - 5} more</div>
-      )}
-    </div>
-  );
-}
-
-// ─── Note Feed Item ───────────────────────────────────────────────────────────
-
-function NoteFeedItem({ note }: { note: Note }) {
-  const leftColors: Record<string, string> = {
-    blocker: "border-l-nred", progress: "border-l-cyan", decision: "border-l-purple",
-    agent_update: "border-l-lime", note: "border-l-line",
-  };
-  const authorColors: Record<string, string> = {
-    agent: "text-lime", user: "text-nblue", system: "text-faint",
-  };
-  return (
-    <div className={`border-l-2 pl-3 py-1 ${leftColors[note.type] ?? "border-l-line"}`}>
-      <p className="text-[12px] text-dim leading-snug line-clamp-2">{note.body}</p>
-      <div className="flex gap-2 mt-0.5">
-        <span className={`font-mono text-[10px] ${authorColors[note.createdBy] ?? "text-faint"}`}>{note.createdBy}</span>
-        <span className="font-mono text-[10px] text-faint">{relativeTime(note.createdAt)}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Status Bar ───────────────────────────────────────────────────────────────
-
-function StatusBar({
-  summary, lastRefresh, refreshing, onRefresh, pendingApprovals,
-}: {
-  summary: DashboardState["summary"] | null;
-  lastRefresh: Date | null;
-  refreshing: boolean;
-  onRefresh: () => void;
-  pendingApprovals: number;
-}) {
-  return (
-    <div className="flex items-center justify-between px-5 py-2 bg-panel/80 border-b border-line text-[11px] font-mono">
-      <div className="flex items-center gap-5">
-        <span className="text-cyan font-bold tracking-widest">NEONDECK</span>
-        <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${refreshing ? "animate-pulse bg-amber" : "bg-lime"}`} />
-          <span className="text-faint">{refreshing ? "refreshing…" : lastRefresh ? `updated ${relativeTime(lastRefresh.toISOString())}` : "loading…"}</span>
-        </div>
-      </div>
-      {summary && (
-        <div className="flex items-center gap-5">
-          <span><span className="text-cyan">{summary.activeProjects}</span> <span className="text-faint">projects</span></span>
-          <span><span className="text-[#dbe8fa]">{summary.openTasks}</span> <span className="text-faint">open tasks</span></span>
-          {summary.blockedItems > 0 && (
-            <span><span className="text-nred">{summary.blockedItems}</span> <span className="text-faint">blocked</span></span>
-          )}
-          {pendingApprovals > 0 && (
-            <span className="text-amber animate-pulse">{pendingApprovals} approval{pendingApprovals !== 1 ? "s" : ""} needed</span>
-          )}
-          <span><span className="text-purple">{summary.ideas}</span> <span className="text-faint">ideas</span></span>
-        </div>
-      )}
-      <div className="flex items-center gap-3">
-        <button onClick={onRefresh} disabled={refreshing}
-          className="text-faint hover:text-dim transition-colors">
-          <Activity size={11} />
-        </button>
-        <Link to="/capture" className="text-faint hover:text-lime transition-colors flex items-center gap-1">
-          <Zap size={10} />CAPTURE
+        <Link to="/app/agent" className="font-mono text-[11px] text-faint hover:text-lime flex items-center gap-1">
+          center <ArrowRight size={12} />
         </Link>
-        <Link to="/app" className="text-faint hover:text-cyan transition-colors">CONTROL PANEL</Link>
+      </div>
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative w-12 h-12 flex-shrink-0">
+            <div className="absolute inset-0 rounded-full border-2 animate-spin"
+              style={{ borderColor: `${c}25`, borderTopColor: c, animationDuration: "3s" }} />
+            <div className="absolute inset-2 rounded-full flex items-center justify-center"
+              style={{ background: `radial-gradient(circle, ${c}33, transparent)` }}>
+              <Bot size={18} style={{ color: c }} />
+            </div>
+            {pending > 0 && (
+              <div className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-amber flex items-center justify-center">
+                <span className="text-[11px] font-bold text-black">{pending}</span>
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="font-mono text-[12px] tracking-[2px]" style={{ color: c }}>{label}</div>
+            <div className="text-[13px] text-dim truncate max-w-[220px]">{latest ? latest.summary : "No recent activity"}</div>
+          </div>
+        </div>
+        <div className="mt-3 space-y-1.5">
+          {actions.slice(0, 3).map((a) => (
+            <div key={a.id} className="flex items-center gap-2 text-[12px]">
+              <span className="font-mono text-[10px] text-purple uppercase tracking-wide flex-shrink-0">
+                {a.actionType.replace(/_/g, " ")}
+              </span>
+              <span className="text-dim truncate flex-1">{a.summary}</span>
+              <span className="font-mono text-[10px] text-faint flex-shrink-0">{relativeTime(a.createdAt)}</span>
+            </div>
+          ))}
+          {actions.length === 0 && <div className="text-faint font-mono text-[11px]">No agent actions yet</div>}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── AI Summaries Panel ───────────────────────────────────────────────────────
+// ─── deadlines / ideas / activity / AI ───────────────────────────────────────────
 
-function AISummariesPanel({ summaries }: { summaries: AISummary[] }) {
-  const [idx, setIdx] = useState(0);
-  if (!summaries.length) return null;
-  const s = summaries[idx];
-
+function DeadlineRow({ d }: { d: UpcomingDeadline }) {
+  const Icon = d.kind === "project" ? FolderKanban : ListTodo;
+  const due = dueLabel(d.dueDate);
+  const pc = PRIORITY_COLOR[d.priority ?? ""] ?? C.dim;
   return (
-    <div className="card p-4 h-full">
-      <div className="zone-title mb-3"><span className="zone-dot bg-pink" />AI Insight</div>
-      <div className="flex gap-1 mb-3 flex-wrap">
+    <div className="flex items-center gap-2.5 py-2 border-b border-line last:border-0">
+      <Icon size={14} style={{ color: pc }} className="flex-shrink-0" />
+      <span className="text-[13px] text-dim truncate flex-1">{d.title}</span>
+      {due && <span className={`font-mono text-[12px] flex-shrink-0 ${due.cls}`}>{due.text}</span>}
+    </div>
+  );
+}
+
+function IdeaRow({ i }: { i: Idea }) {
+  const c = IDEA_STATUS_COLOR[i.status] ?? C.dim;
+  return (
+    <div className="flex items-center gap-2.5 py-2 border-b border-line last:border-0">
+      <Lightbulb size={14} className="text-purple flex-shrink-0" />
+      <span className="text-[13px] text-dim truncate flex-1">{i.title}</span>
+      <span className="font-mono text-[11px] flex-shrink-0" style={{ color: c }}>{i.status}</span>
+    </div>
+  );
+}
+
+function ActivityRow({ n }: { n: Note }) {
+  const authorColor: Record<string, string> = { agent: C.lime, user: C.blue, system: C.faint };
+  const typeAccent: Record<string, string> = {
+    blocker: C.red, progress: C.cyan, decision: C.amber, agent_update: C.lime, note: C.faint,
+  };
+  return (
+    <div className="py-2 border-b border-line last:border-0 pl-2" style={{ borderLeft: `2px solid ${typeAccent[n.type] ?? C.faint}` }}>
+      <p className="text-[13px] text-[#dbe8fa] leading-snug line-clamp-2">{n.body}</p>
+      <div className="flex gap-2 mt-0.5 font-mono text-[11px]">
+        <span style={{ color: authorColor[n.createdBy] ?? C.faint }}>{n.createdBy}</span>
+        <span className="text-faint">· {n.parentType} · {relativeTime(n.createdAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+function AIInsight({ summaries }: { summaries: AISummary[] }) {
+  const [idx, setIdx] = useState(0);
+  if (!summaries.length) {
+    return (
+      <div className="card flex-shrink-0 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full bg-pink animate-pulse-slow" style={{ boxShadow: `0 0 8px ${C.pink}` }} />
+          <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">AI Insight</span>
+        </div>
+        <p className="text-[13px] text-faint leading-relaxed">
+          Configure an AI provider in Settings, then generate summaries from the Agent Center.
+        </p>
+        <Link to="/app/settings" className="font-mono text-[12px] text-purple hover:text-pink mt-2 inline-flex items-center gap-1">
+          → Settings
+        </Link>
+      </div>
+    );
+  }
+  const s = summaries[Math.min(idx, summaries.length - 1)];
+  return (
+    <div className="card flex-shrink-0 p-4">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Sparkles size={14} className="text-pink" />
+        <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">AI Insight</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-2.5">
         {summaries.map((sum, i) => (
           <button key={sum.id} onClick={() => setIdx(i)}
-            className={`font-mono text-[9px] px-2 py-1 rounded border transition-colors ${i === idx
-              ? "border-pink/50 text-pink bg-pink/10" : "border-line text-faint hover:text-dim"}`}>
+            className={`font-mono text-[10px] px-2 py-1 rounded border transition-colors ${
+              i === idx ? "border-pink/60 text-pink bg-pink/10" : "border-line text-faint hover:text-dim"}`}>
             {sum.type.replace(/_/g, " ")}
           </button>
         ))}
       </div>
-      <p className="text-[12px] text-dim leading-relaxed">{s.content}</p>
-      <div className="font-mono text-[10px] text-faint mt-2">{s.provider} · {relativeTime(s.generatedAt)}</div>
+      <p className="text-[13px] text-dim leading-relaxed line-clamp-5">{s.content}</p>
+      <div className="font-mono text-[11px] text-faint mt-2">{s.provider} · {relativeTime(s.generatedAt)}</div>
     </div>
   );
 }
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ─── main ─────────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
   const [data, setData] = useState<DashboardState | null>(null);
@@ -255,15 +420,14 @@ export function Dashboard() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [clock, setClock] = useState(timeStr());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sseCleanupRef = useRef<(() => void) | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      // The dashboard state is the critical payload; summaries and approvals are
-      // best-effort so a single failing endpoint can never pin the whole board
-      // on "loading…".
+      // Dashboard state is the critical payload; the rest are best-effort so a
+      // single failing endpoint can never pin the whole board on "loading…".
       const [dash, sums, pendingList] = await Promise.all([
         api.get<DashboardState>("/dashboard/state"),
         api.get<AISummary[]>("/ai/summaries").catch(() => [] as AISummary[]),
@@ -274,236 +438,157 @@ export function Dashboard() {
       setPendingApprovals(Array.isArray(pendingList) ? pendingList.length : 0);
       setLastRefresh(new Date());
     } catch (err) {
-      // Keep the last good render and let the next poll retry instead of crashing.
       console.error("[dashboard] load failed:", err);
     } finally {
       setRefreshing(false);
     }
   }, []);
 
-  // Initial load + settings
+  // initial load + settings
   useEffect(() => {
     load();
     api.get<Settings>("/settings").then(setSettings).catch(() => null);
   }, [load]);
 
-  // Auto-refresh interval
+  // live clock
   useEffect(() => {
-    const secs = parseInt(settings?.dashboardRefreshSeconds ?? "30", 10);
+    const id = setInterval(() => setClock(timeStr()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // auto-refresh poll
+  useEffect(() => {
+    const secs = Math.max(5, parseInt(settings?.dashboardRefreshSeconds ?? "30", 10) || 30);
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(load, secs * 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [settings?.dashboardRefreshSeconds, load]);
 
-  // SSE live updates
+  // SSE live updates — server emits "data-changed" on every mutation.
   useEffect(() => {
     const cleanup = connectSSE((event) => {
-      // The server emits "data-changed" on every mutation; the granular names are
-      // kept for forward-compatibility. Reload on any of them, but ignore the
-      // "ping"/"connected" keepalives.
       if (["data-changed", "project_updated", "task_updated", "idea_updated", "agent_action"].includes(event.type)) {
         load();
       }
-      if (event.type === "approval_requested") {
-        setPendingApprovals((n) => n + 1);
-      }
+      if (event.type === "approval_requested") setPendingApprovals((n) => n + 1);
     });
-    sseCleanupRef.current = cleanup;
     return cleanup;
   }, [load]);
 
+  const reduced = settings?.reducedMotion === "true";
+  const s = data?.summary;
+  const tasks = data?.tasks;
   const agentActions = data?.agentActions ?? [];
   const lastAction = agentActions[0];
 
-  // Infer agent state
-  const agentState: "idle" | "working" | "attention" | "error" = (() => {
+  const agentState: AgentState = (() => {
     if (pendingApprovals > 0) return "attention";
     if (!lastAction) return "idle";
     if (lastAction.actionType === "error") return "error";
-    const ageMs = Date.now() - new Date(lastAction.createdAt).getTime();
-    if (ageMs < 300_000) return "working";
-    return "idle";
+    return Date.now() - new Date(lastAction.createdAt).getTime() < 300_000 ? "working" : "idle";
   })();
 
-  const tasks = data?.tasks;
-  const reduced = settings?.reducedMotion === "true";
-
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "#04060c" }}>
-      {/* Status bar */}
-      <StatusBar
-        summary={data?.summary ?? null}
-        lastRefresh={lastRefresh}
-        refreshing={refreshing}
-        onRefresh={load}
-        pendingApprovals={pendingApprovals}
-      />
+    <ReducedMotionContext.Provider value={reduced}>
+    <div className={`flex flex-col h-screen overflow-hidden bg-bg ${reduced ? "reduced" : ""}`}>
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      <header className="flex items-center gap-5 px-6 py-3 border-b border-line flex-shrink-0">
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <span className="w-3 h-3 rounded-full bg-cyan animate-pulse-slow" style={{ boxShadow: `0 0 12px ${C.cyan}` }} />
+          <span className="font-display font-bold text-2xl tracking-[3px] text-white">
+            KEY OF <span className="text-cyan" style={{ textShadow: `0 0 16px ${C.cyan}` }}>SOLOMON</span>
+          </span>
+        </div>
+        <div className="font-mono text-xl text-cyan flex-shrink-0" style={{ textShadow: "0 0 12px rgba(0,240,255,.4)" }}>{clock}</div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`w-2 h-2 rounded-full ${refreshing ? "bg-amber animate-pulse" : "bg-lime"}`} />
+          <span className="font-mono text-[12px] text-faint">
+            {refreshing ? "syncing…" : lastRefresh ? `synced ${relativeTime(lastRefresh.toISOString())}` : "connecting…"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5 ml-auto">
+          <Kpi label="Projects" value={s?.activeProjects ?? 0} color={C.cyan} icon={FolderKanban} />
+          <Kpi label="Open Tasks" value={s?.openTasks ?? 0} color={C.blue} icon={ListTodo} />
+          <Kpi label="Due Today" value={s?.dueToday ?? 0} color={C.amber} icon={CalendarClock} alert />
+          <Kpi label="Overdue" value={s?.overdue ?? 0} color={C.red} icon={Flame} alert />
+          <Kpi label="Blocked" value={s?.blockedItems ?? 0} color={C.pink} icon={AlertTriangle} alert />
+          <Kpi label="Ideas" value={s?.ideas ?? 0} color={C.purple} icon={Lightbulb} />
+        </div>
+      </header>
 
-      {/* Ticker */}
-      {!reduced && data?.ticker?.length ? <Ticker items={data.ticker} /> : null}
+      {/* ── TICKER ─────────────────────────────────────────────────────────── */}
+      {!reduced && <Ticker items={data?.ticker ?? []} />}
 
-      {/* Main grid */}
-      <div className="flex-1 overflow-hidden grid" style={{ gridTemplateColumns: "280px 1fr 280px" }}>
+      {/* ── MAIN ───────────────────────────────────────────────────────────── */}
+      <main className="flex-1 min-h-0 grid gap-3 p-3" style={{ gridTemplateColumns: "340px 1fr 360px" }}>
 
-        {/* ── LEFT: Projects ─────────────────────────────────────────────── */}
-        <div className="flex flex-col border-r border-line overflow-hidden">
-          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <div className="zone-title"><span className="zone-dot bg-cyan" />Projects</div>
-            <Link to="/app/projects" className="font-mono text-[10px] text-faint hover:text-cyan">all →</Link>
+        {/* LEFT: projects + activity */}
+        <div className="flex flex-col gap-3 min-h-0">
+          <Panel title="Active Projects" accent={C.cyan} className="flex-[1.4]" action={<AllLink to="/app/projects" color={C.cyan} />}>
+            {(data?.projects ?? []).map((p) => <ProjectRow key={p.id} p={p} />)}
+            {data && data.projects.length === 0 && <Empty label="NO ACTIVE PROJECTS" />}
+          </Panel>
+          <Panel title="Recent Activity" accent={C.purple} className="flex-1" action={<AllLink to="/app/activity" color={C.purple} />}>
+            {(data?.recentNotes ?? []).slice(0, 10).map((n) => <ActivityRow key={n.id} n={n} />)}
+            {data && data.recentNotes.length === 0 && <Empty label="NO ACTIVITY YET" />}
+          </Panel>
+        </div>
+
+        {/* CENTER: task command board */}
+        <div className="card flex flex-col min-h-0">
+          <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full animate-pulse-slow" style={{ background: C.blue, boxShadow: `0 0 8px ${C.blue}` }} />
+              <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">Task Command Board</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[12px] text-faint">{s?.openTasks ?? 0} open · {s?.completedToday ?? 0} done today</span>
+              <AllLink to="/app/tasks" color={C.blue} />
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
-            {(data?.projects ?? []).map((p) => <ProjectCard key={p.id} project={p} />)}
-            {data && data.projects.length === 0 && (
-              <div className="text-faint font-mono text-[11px] text-center pt-8">No active projects</div>
-            )}
+          <div className="flex-1 min-h-0 grid grid-cols-3 grid-rows-2 gap-2.5 px-3 pb-3">
+            <TaskColumn label="In Progress" icon={Activity} accent={C.cyan} tasks={tasks?.inProgress ?? []} />
+            <TaskColumn label="Due Today" icon={CalendarClock} accent={C.amber} tasks={tasks?.dueToday ?? []} />
+            <TaskColumn label="Blocked" icon={AlertTriangle} accent={C.red} tasks={tasks?.blocked ?? []} />
+            <TaskColumn label="To Do" icon={ListTodo} accent={C.blue} tasks={tasks?.todo ?? []} />
+            <TaskColumn label="Waiting" icon={Hourglass} accent={C.purple} tasks={tasks?.waiting ?? []} />
+            <TaskColumn label="Done Today" icon={CheckCircle2} accent={C.lime} tasks={tasks?.completedToday ?? []} done />
           </div>
         </div>
 
-        {/* ── CENTER: Tasks + Notes ───────────────────────────────────────── */}
-        <div className="flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
-
-            {/* Tasks grid */}
-            <div>
-              <div className="zone-title mb-3">
-                <span className="zone-dot bg-amber" />Tasks
-                <Link to="/app/tasks" className="ml-auto font-mono text-[10px] text-faint hover:text-amber">all →</Link>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  {tasks && (
-                    <TaskBlock label="IN PROGRESS" tasks={tasks.inProgress} color="text-cyan" icon={Activity} />
-                  )}
-                  {tasks && (
-                    <TaskBlock label="BLOCKED" tasks={tasks.blocked} color="text-nred" icon={AlertTriangle} />
-                  )}
-                </div>
-                <div className="space-y-4">
-                  {tasks && (
-                    <TaskBlock label="TODO" tasks={tasks.todo} color="text-dim" icon={CheckCircle} />
-                  )}
-                  {tasks && (
-                    <TaskBlock label="DUE SOON" tasks={tasks.dueSoon} color="text-amber" icon={Clock} />
-                  )}
-                  {tasks && (
-                    <TaskBlock label="WAITING" tasks={tasks.waiting} color="text-purple" icon={Layers} />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Notes / Activity feed */}
-            <div>
-              <div className="zone-title mb-3">
-                <span className="zone-dot bg-purple" />Recent Activity
-                <Link to="/app/activity" className="ml-auto font-mono text-[10px] text-faint hover:text-purple">all →</Link>
-              </div>
-              <div className="space-y-2">
-                {(data?.recentNotes ?? []).slice(0, 8).map((n) => (
-                  <NoteFeedItem key={n.id} note={n} />
-                ))}
-                {data && data.recentNotes.length === 0 && (
-                  <div className="text-faint font-mono text-[11px] text-center py-4">No activity yet</div>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* RIGHT: agent + deadlines + ideas + AI */}
+        <div className="flex flex-col gap-3 min-h-0">
+          <AgentPanel state={agentState} actions={agentActions} pending={pendingApprovals} />
+          <Panel title="Upcoming Deadlines" accent={C.amber} className="flex-1">
+            {(data?.upcomingDeadlines ?? []).map((d) => <DeadlineRow key={`${d.kind}-${d.id}`} d={d} />)}
+            {data && (data.upcomingDeadlines?.length ?? 0) === 0 && <Empty label="NOTHING DUE THIS WEEK" />}
+          </Panel>
+          <Panel title="Ideas" accent={C.purple} className="flex-1" action={<AllLink to="/app/ideas" color={C.purple} />}>
+            {(data?.ideas ?? []).slice(0, 8).map((i) => <IdeaRow key={i.id} i={i} />)}
+            {data && data.ideas.length === 0 && <Empty label="IDEA VAULT EMPTY" />}
+          </Panel>
+          <AIInsight summaries={summaries} />
         </div>
+      </main>
 
-        {/* ── RIGHT: Agent + Ideas + AI ──────────────────────────────────── */}
-        <div className="flex flex-col border-l border-line overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
-
-            {/* Agent block */}
-            <div className="card p-3">
-              <div className="zone-title mb-3">
-                <span className="zone-dot bg-lime" />OpenClaw Agent
-                <Link to="/app/agent" className="ml-auto font-mono text-[10px] text-faint hover:text-lime">center →</Link>
-              </div>
-              <AgentAvatar
-                state={agentState}
-                pendingApprovals={pendingApprovals}
-                lastAction={lastAction}
-              />
-              {agentActions.slice(0, 3).map((a) => (
-                <div key={a.id} className="mt-2 py-1.5 border-t border-line first:border-t-0">
-                  <p className="text-[11px] text-dim line-clamp-1">{a.summary}</p>
-                  <p className="font-mono text-[9px] text-faint">{relativeTime(a.createdAt)}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Ideas carousel */}
-            <div className="card p-3">
-              <div className="zone-title mb-2">
-                <span className="zone-dot bg-purple" />Ideas
-                <Link to="/app/ideas" className="ml-auto font-mono text-[10px] text-faint hover:text-purple">all →</Link>
-              </div>
-              <div className="space-y-1.5">
-                {(data?.ideas ?? []).slice(0, 5).map((idea) => (
-                  <div key={idea.id} className="flex items-center gap-2 py-1">
-                    <span className="w-1 h-1 rounded-full bg-purple flex-shrink-0" />
-                    <span className="text-[11px] text-dim truncate flex-1">{idea.title}</span>
-                    <span className={`font-mono text-[9px] ${
-                      idea.status === "possible" ? "text-lime" :
-                      idea.status === "reviewing" ? "text-cyan" : "text-faint"
-                    }`}>{idea.status}</span>
-                  </div>
-                ))}
-                {data && data.ideas.length === 0 && (
-                  <div className="text-faint font-mono text-[11px] text-center py-2">No ideas yet</div>
-                )}
-                {(data?.ideas?.length ?? 0) > 5 && (
-                  <div className="text-faint font-mono text-[10px] text-right">
-                    +{data!.ideas.length - 5} more
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* AI Summaries */}
-            {summaries.length > 0 && <AISummariesPanel summaries={summaries} />}
-
-            {summaries.length === 0 && (
-              <div className="card p-3 text-center">
-                <div className="zone-title mb-2"><span className="zone-dot bg-pink" />AI Insight</div>
-                <p className="text-faint font-mono text-[10px] leading-relaxed">
-                  Configure an AI provider in Settings and generate summaries from the Agent Center.
-                </p>
-                <Link to="/app/settings" className="font-mono text-[10px] text-purple hover:text-pink mt-2 block">
-                  → Settings
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom bar */}
-      <div className="flex items-center justify-between px-5 py-1.5 border-t border-line bg-panel/60 text-[10px] font-mono text-faint">
-        <span>NEONDECK v0.2.0-beta.2</span>
-        <div className="flex gap-4">
-          <Link to="/capture" className="hover:text-lime">⚡ Fast Capture</Link>
-          <Link to="/app/agent" className="hover:text-cyan">🤖 Agent Center</Link>
+      {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
+      <footer className="flex items-center justify-between px-6 py-2 border-t border-line flex-shrink-0 font-mono text-[12px] text-faint">
+        <span>KEY OF SOLOMON v0.2.0-beta.2</span>
+        <div className="flex gap-5">
+          <Link to="/capture" className="hover:text-lime flex items-center gap-1"><Zap size={13} /> Fast Capture</Link>
+          <Link to="/app/agent" className="hover:text-cyan flex items-center gap-1"><Bot size={13} /> Agent Center</Link>
+          <Link to="/app" className="hover:text-cyan flex items-center gap-1"><FolderClock size={13} /> Control Panel</Link>
         </div>
         <span>auto-refresh: {settings?.dashboardRefreshSeconds ?? "30"}s</span>
-      </div>
+      </footer>
 
-      {/* Ticker keyframe override */}
+      {/* ticker keyframes */}
       <style>{`
-        @keyframes ticker {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-ticker {
-          animation: ticker ${Math.max(20, (data?.ticker?.length ?? 5) * 8)}s linear infinite;
-          ${reduced ? "animation: none;" : ""}
-        }
-        @keyframes spin-slow {
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin-slow { animation: spin-slow 4s linear infinite; }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-ticker { animation: ticker ${Math.max(28, (data?.ticker?.length ?? 5) * 7)}s linear infinite; }
+        .reduced .animate-ticker { animation: none; }
       `}</style>
     </div>
+    </ReducedMotionContext.Provider>
   );
 }

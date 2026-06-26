@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEONDECK // Control Panel</title>
+<title>Key of Solomon // Control Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Caveat:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -166,7 +166,7 @@ code.tok{background:rgba(0,240,255,.07);border:1px solid var(--line);padding:3px
 <body>
 <div class="shell">
   <aside class="side">
-    <div class="logo">NEON<span>DECK</span><small>CONTROL PANEL · β1</small></div>
+    <div class="logo">KEY OF <span>SOLOMON</span><small>CONTROL PANEL · β1</small></div>
     <nav class="nav" id="nav">
       <a href="#/overview" data-r="overview"><span class="ico">◈</span> Overview</a>
       <a href="#/projects" data-r="projects"><span class="ico">▣</span> Projects</a>
@@ -614,7 +614,7 @@ async function exportData(){
   const d = await api("/data/export");
   const blob = new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
   const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download = "neondeck-export-"+new Date().toISOString().slice(0,10)+".json"; a.click();
+  a.download = "key-of-solomon-export-"+new Date().toISOString().slice(0,10)+".json"; a.click();
 }
 async function importData(file){
   if(!file) return;

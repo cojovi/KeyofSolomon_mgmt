@@ -32,7 +32,7 @@ Authorization: Bearer <LOCAL_API_TOKEN>
 `GET /health` — no auth required.
 
 ```json
-{ "data": { "status": "ok", "app": "NEONDECK", "version": "0.2.0-beta.2", "time": "…", "database": "…", "frontend": "react" } }
+{ "data": { "status": "ok", "app": "Key of Solomon", "version": "0.2.0-beta.2", "time": "…", "database": "…", "frontend": "react" } }
 ```
 
 ## Realtime events
@@ -58,7 +58,13 @@ Authorization: Bearer <LOCAL_API_TOKEN>
 `GET /dashboard/state` — everything the live dashboard needs in one call.
 `GET /dashboard` is kept as a backward-compatible alias returning the identical payload.
 
-Returns: `{ summary, ticker, projects, tasks: {inProgress,todo,waiting,blocked,dueSoon}, ideas, recentNotes, agentActions }`. See [DASHBOARD.md](./DASHBOARD.md) for the full shape and selection rules.
+Returns: `{ summary, ticker, projects, tasks, ideas, recentNotes, agentActions, upcomingDeadlines }` where:
+
+- `summary` = `{ activeProjects, openTasks, blockedItems, ideas, dueToday, overdue, completedToday }`
+- `tasks` = `{ inProgress, todo, waiting, blocked, dueSoon, dueToday, completedToday }`
+- `upcomingDeadlines` = merged tasks + projects due within 7 days (overdue included), each `{ id, title, dueDate, priority, status, kind }`
+
+See [DASHBOARD.md](./DASHBOARD.md) for the full shape and selection rules.
 
 ---
 

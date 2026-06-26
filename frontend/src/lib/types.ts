@@ -108,6 +108,15 @@ export interface AISummary {
   provider: string;
 }
 
+export interface UpcomingDeadline {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority?: Priority;
+  status: string;
+  kind: "task" | "project";
+}
+
 export interface DashboardState {
   generatedAt: string;
   summary: {
@@ -115,6 +124,9 @@ export interface DashboardState {
     openTasks: number;
     blockedItems: number;
     ideas: number;
+    dueToday: number;
+    overdue: number;
+    completedToday: number;
   };
   ticker: TickerItem[];
   projects: Project[];
@@ -124,10 +136,13 @@ export interface DashboardState {
     waiting: Task[];
     blocked: Task[];
     dueSoon: Task[];
+    dueToday: Task[];
+    completedToday: Task[];
   };
   ideas: Idea[];
   recentNotes: Note[];
   agentActions: AgentAction[];
+  upcomingDeadlines: UpcomingDeadline[];
 }
 
 export interface TickerItem {

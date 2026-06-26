@@ -1,4 +1,4 @@
-# NEONDECK · Beta 1
+# Key of Solomon · Beta 1
 
 Local-first task / project / idea command center with a live animated neon dashboard and an agent-safe API.
 

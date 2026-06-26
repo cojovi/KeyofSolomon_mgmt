@@ -11,7 +11,9 @@ export function buildDashboardState() {
     (db.prepare(sql).get(...params) as { n: number }).n;
 
   const nowIso = now();
+  const today = nowIso.slice(0, 10); // YYYY-MM-DD
   const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const summary = {
     activeProjects: count("SELECT COUNT(*) n FROM projects WHERE status = 'active'"),
@@ -20,6 +22,18 @@ export function buildDashboardState() {
       count("SELECT COUNT(*) n FROM tasks WHERE status = 'blocked'") +
       count("SELECT COUNT(*) n FROM projects WHERE status = 'blocked'"),
     ideas: count("SELECT COUNT(*) n FROM ideas WHERE status NOT IN ('archived','converted')"),
+    dueToday: count(
+      "SELECT COUNT(*) n FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND substr(dueDate,1,10) = ?",
+      today
+    ),
+    overdue: count(
+      "SELECT COUNT(*) n FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND dueDate < ?",
+      nowIso
+    ),
+    completedToday: count(
+      "SELECT COUNT(*) n FROM tasks WHERE status = 'done' AND completedAt IS NOT NULL AND substr(completedAt,1,10) = ?",
+      today
+    ),
   };
 
   const projects = all(
@@ -35,6 +49,14 @@ export function buildDashboardState() {
       "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND dueDate <= ? ORDER BY dueDate ASC LIMIT 8",
       soon
     ),
+    dueToday: all(
+      "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND substr(dueDate,1,10) = ? ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, dueDate ASC LIMIT 8",
+      today
+    ),
+    completedToday: all(
+      "SELECT * FROM tasks WHERE status = 'done' AND completedAt IS NOT NULL AND substr(completedAt,1,10) = ? ORDER BY completedAt DESC LIMIT 8",
+      today
+    ),
   };
 
   const ideas = all(
@@ -43,6 +65,17 @@ export function buildDashboardState() {
 
   const recentNotes = all("SELECT * FROM notes ORDER BY createdAt DESC LIMIT 15");
   const agentActions = db.prepare("SELECT * FROM agent_actions ORDER BY createdAt DESC LIMIT 15").all();
+
+  // Unified upcoming deadlines (tasks + projects) within the next 7 days, overdue first.
+  const upcomingDeadlines = all(
+    `SELECT id, title, dueDate, priority, status, 'task' AS kind FROM tasks
+       WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND substr(dueDate,1,10) <= ?
+     UNION ALL
+     SELECT id, title, dueDate, priority, status, 'project' AS kind FROM projects
+       WHERE status NOT IN ('completed','archived') AND dueDate IS NOT NULL AND substr(dueDate,1,10) <= ?
+     ORDER BY dueDate ASC LIMIT 10`,
+    in7Days, in7Days
+  );
 
   /* ---- ticker assembly ---- */
   type TickerItem = { type: string; label: string; text: string; targetType?: string; targetId?: string };
@@ -101,6 +134,7 @@ export function buildDashboardState() {
     ideas,
     recentNotes,
     agentActions,
+    upcomingDeadlines,
     settings: getSettings(),
   };
 }

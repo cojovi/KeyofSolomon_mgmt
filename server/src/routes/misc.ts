@@ -214,7 +214,7 @@ dataRouter.get("/export", (_req, res) => {
 dataRouter.post("/import", (req, res) => {
   const b = req.body || {};
   if (b.version !== "beta1")
-    return fail(res, 400, "VALIDATION_ERROR", "Import payload must be a NEONDECK beta1 export (version: 'beta1')");
+    return fail(res, 400, "VALIDATION_ERROR", "Import payload must be a Key of Solomon beta1 export (version: 'beta1')");
   const tables = ["projects", "tasks", "ideas", "notes", "attachments", "agent_actions"];
   const counts: Record<string, number> = {};
   const tx = db.transaction(() => {

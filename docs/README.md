@@ -1,6 +1,6 @@
-# NEONDECK — Beta 2
+# Key of Solomon — Beta 2
 
-NEONDECK is a **local-first task / project / idea command center** with two faces:
+Key of Solomon is a **local-first task / project / idea command center** with two faces:
 
 1. **Control Panel** (`/app`) — create, edit, search, filter, and manage everything.
 2. **Live Dashboard** (`/dashboard`) — fullscreen, animated, read-only command-center view designed to run on a dedicated screen.

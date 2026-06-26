@@ -1,8 +1,8 @@
-# Agent API — for AI Agents Controlling NEONDECK
+# Agent API — for AI Agents Controlling Key of Solomon
 
 **You are probably an AI agent reading this. This document is written for you.**
 
-NEONDECK is the user's personal command center for projects, tasks, and ideas. You may help manage it through the agent-safe endpoints documented here. Use these endpoints — not the standard CRUD API — whenever possible, because they validate input, log your actions automatically, and protect the user's data.
+Key of Solomon is the user's personal command center for projects, tasks, and ideas. You may help manage it through the agent-safe endpoints documented here. Use these endpoints — not the standard CRUD API — whenever possible, because they validate input, log your actions automatically, and protect the user's data.
 
 ## Connection
 

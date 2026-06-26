@@ -1,7 +1,7 @@
 {
   "name": "neondeck",
   "version": "0.2.0-beta.2",
-  "description": "NEONDECK — local-first task / project / idea command center with a live animated dashboard and an agent-safe API.",
+  "description": "Key of Solomon — local-first task / project / idea command center with a live animated dashboard and an agent-safe API.",
   "type": "module",
   "scripts": {
     "start": "tsx server/src/server.ts",
@@ -13,12 +13,12 @@
     "seed:force": "tsx server/src/seed.ts --force"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^12.11.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",

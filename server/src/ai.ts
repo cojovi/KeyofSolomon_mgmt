@@ -104,7 +104,7 @@ async function callOpenAICompat(
   };
   if (provider === "openrouter") {
     headers["HTTP-Referer"] = "http://localhost:8787";
-    headers["X-Title"] = "NEONDECK";
+    headers["X-Title"] = "Key of Solomon";
   }
   const res = await fetch(url, {
     method: "POST",

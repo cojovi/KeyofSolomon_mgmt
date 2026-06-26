@@ -5,25 +5,27 @@ Route: `http://localhost:8787/dashboard` — fullscreen, read-only, designed for
 ## Layout zones
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ STATUS BAR: NEONDECK · refresh status · task/project/idea counts     │
-│             pending approvals · fast capture link                    │
-├──────────────────────────────────────────────────────────────────────┤
-│ SCROLLING TICKER: blocked / due-soon / agent / updated items         │
-├─────────────────┬────────────────────────────┬───────────────────────┤
-│ LEFT            │ CENTER                     │ RIGHT                 │
-│ ACTIVE PROJECTS │ TASKS (2-column grid)      │ AGENT STATUS + avatar │
-│ animated cards  │   In Progress · Blocked    │ + recent agent actions│
-│ with progress   │   Todo · Due Soon          ├───────────────────────┤
-│ bars + status   │   Waiting                  │ IDEAS (mini list)     │
-│                 ├────────────────────────────┤                       │
-│                 │ RECENT ACTIVITY feed       ├───────────────────────┤
-│                 │ color-coded by type        │ AI INSIGHT panel      │
-│                 │                            │ (rotating summaries)  │
-└─────────────────┴────────────────────────────┴───────────────────────┘
-│ BOTTOM BAR: version · fast capture · agent center · refresh cadence  │
-└──────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ HEADER: Key of Solomon · live clock · sync status │ 6 KPI tiles:                   │
+│   PROJECTS · OPEN TASKS · DUE TODAY · OVERDUE · BLOCKED · IDEAS             │
+├────────────────────────────────────────────────────────────────────────────┤
+│ SCROLLING TICKER: urgent / overdue / blocked / agent / idea / updated       │
+├─────────────────┬──────────────────────────────────┬─────────────────────────┤
+│ LEFT            │ CENTER — TASK COMMAND BOARD       │ RIGHT                   │
+│ ACTIVE PROJECTS │ 6 status columns (3 × 2):         │ OPENCLAW AGENT          │
+│  icon·progress· │   In Progress · Due Today ·       │  avatar · state ·       │
+│  status · due   │   Blocked / To Do · Waiting ·     │  recent actions         │
+├─────────────────┤   Done Today                      ├─────────────────────────┤
+│ RECENT ACTIVITY │ each column shows a count and     │ UPCOMING DEADLINES      │
+│  color-coded by │ scrolls independently             │ IDEAS (mini list)       │
+│  note type      │                                   │ AI INSIGHT              │
+└─────────────────┴──────────────────────────────────┴─────────────────────────┘
+│ FOOTER: version · fast capture · agent center · control panel · cadence     │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
+
+Text is sized for at-a-glance reading on a wall display, and every region
+scrolls independently inside a fixed full-screen frame (no page-level scroll).
 
 ## Data source
 
@@ -32,13 +34,14 @@ Everything comes from one call: `GET /api/v1/dashboard/state` (the bare `GET /ap
 ```json
 {
   "generatedAt": "2026-06-13T12:00:00.000Z",
-  "summary": { "activeProjects": 4, "openTasks": 12, "blockedItems": 2, "ideas": 18 },
+  "summary": { "activeProjects": 4, "openTasks": 12, "blockedItems": 2, "ideas": 18, "dueToday": 3, "overdue": 1, "completedToday": 5 },
   "ticker": [ { "type": "blocked", "label": "BLOCKED", "text": "Finish API docs", "targetType": "task", "targetId": "task_…" } ],
   "projects": [ Project ],
-  "tasks": { "inProgress": [], "todo": [], "waiting": [], "blocked": [], "dueSoon": [] },
+  "tasks": { "inProgress": [], "todo": [], "waiting": [], "blocked": [], "dueSoon": [], "dueToday": [], "completedToday": [] },
   "ideas": [ Idea ],
   "recentNotes": [ Note ],
-  "agentActions": [ AgentAction ]
+  "agentActions": [ AgentAction ],
+  "upcomingDeadlines": [ { "id": "task_…", "title": "File quarterly sales tax", "dueDate": "2026-06-15T…", "priority": "urgent", "status": "todo", "kind": "task" } ]
 }
 ```
 
@@ -46,13 +49,17 @@ AI summaries are fetched separately via `GET /api/v1/ai/summaries` and displayed
 
 ## Item selection rules
 
-- **projects** — statuses `planning/active/paused/blocked`; blocked first, then active, then recency. Max 12, top 5 in viewport.
+- **projects** — statuses `planning/active/paused/blocked`; blocked first, then active, then recency. Max 12.
+- **tasks.dueToday** — open tasks whose due date is today (priority order). Powers the Due Today column + KPI.
+- **tasks.completedToday** — tasks marked done today (newest first). Powers the Done Today column + KPI.
 - **tasks.dueSoon** — open tasks due within 3 days, soonest first.
-- **tasks.*** — capped at 8 per group, 5 rendered per block.
+- **tasks.\*** — capped at 8 per group, 6 rendered per column (with "+N more").
+- **summary.dueToday / overdue / completedToday** — counts for the header KPI tiles (Overdue = open tasks past their due date).
+- **upcomingDeadlines** — tasks + projects with a due date in the next 7 days (and any overdue), soonest first, max 10. Powers the Upcoming Deadlines panel.
 - **ideas** — not archived/converted; newest-updated first; max 12.
 - **recentNotes** — newest 15 across all parent types.
-- **agentActions** — newest 20 for the agent feed; most recent 3 in the agent panel.
-- **ticker** (priority order): blocked tasks → overdue tasks → blocked projects → due-soon tasks → high-priority ideas → recent agent actions → recently-updated items. Duplicated for seamless infinite scroll.
+- **agentActions** — newest 15 for the agent feed; most recent 3 in the agent panel.
+- **ticker** (priority order): urgent/blocked tasks → overdue tasks → blocked projects → due-soon tasks → high-priority ideas → recent agent actions → recently-updated items. Duplicated for seamless infinite scroll.
 
 ## Live updates
 
