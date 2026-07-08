@@ -285,10 +285,10 @@ Frontend API client: `frontend/src/lib/api.ts` — auto-fetches token from `/ui-
 ```bash
 cp .env.example .env          # set LOCAL_API_TOKEN
 npm install
-npm run build:frontend        # compile React → frontend/dist/
-npm run seed                  # optional demo data
-npm start                     # Express on :8787
+npm start                     # Express on :8787 — pre-built UI in frontend/dist/
 ```
+
+Optional: `npm run seed` (demo data) · `npm run build:frontend` (after editing `frontend/src/` or if dist is missing)
 
 **Dev mode (two terminals):**
 
@@ -388,4 +388,3 @@ External tools can push data without using the full agent API. All require the s
 
 Detailed docs live in [`docs/`](./docs/README.md). Prefer those for endpoint signatures, curl examples, dashboard zone rules, and webhook payloads. This file is a Cursor-oriented overview — not a substitute for the full API docs.
 
-<!-- Legacy note: README.md title still says "Beta 1" in places; package.json and health endpoint report 0.2.0-beta.2. -->

@@ -13,10 +13,15 @@ It also exposes a clean, documented REST API with a dedicated **agent-safe API**
 ```bash
 cp .env.example .env          # set LOCAL_API_TOKEN
 npm install
-npm run build:frontend        # compile the React frontend (one-time, or after UI changes)
-npm run seed                  # optional: realistic demo data
 npm start
 ```
+
+**`npm start` is enough for normal use.** A pre-built React UI ships in `frontend/dist/`, so you do not need a separate build step just to run the app.
+
+Optional:
+
+- `npm run seed` — load demo data (only if the database is empty)
+- `npm run build:frontend` — recompile the UI after editing `frontend/src/`, or if startup reports `Frontend → Legacy HTML`
 
 Then open:
 
@@ -55,13 +60,14 @@ npm run dev:frontend     # Vite on :5173 (HMR, proxies /api → :8787)
 - **AI:** Multi-provider client — Anthropic, OpenAI, OpenRouter, Ollama — configured in Settings
 - **Realtime:** Server-Sent Events at `GET /api/v1/events`
 
-The backend serves the compiled React SPA automatically. Run `npm run build:frontend` once, then `npm start` — one process, one port.
+The backend serves the compiled React SPA from `frontend/dist/` automatically — one process, one port. Re-run `npm run build:frontend` only after you change files under `frontend/src/`.
 
 ## Documentation map
 
 | File | Contents |
 |---|---|
 | [LOCAL_SETUP.md](./LOCAL_SETUP.md) | Install, env vars, frontend build, kiosk mode |
+| [HERMES_AGENT_BRIEF.md](./HERMES_AGENT_BRIEF.md) | Short agent operating brief for Hermes-compatible agents |
 | [DATA_MODEL.md](./DATA_MODEL.md) | Every entity, field, and status (including Beta 2 additions) |
 | [API.md](./API.md) | All standard REST endpoints |
 | [AGENT_API.md](./AGENT_API.md) | The agent-safe API — **read this if you are an AI agent** |

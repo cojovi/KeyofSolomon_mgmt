@@ -11,10 +11,15 @@
 cd neondeck
 cp .env.example .env         # edit LOCAL_API_TOKEN to something of your own
 npm install
-npm run build:frontend       # compile React SPA → frontend/dist/ (one-time)
-npm run seed                 # optional: realistic demo data
 npm start
 ```
+
+**`npm start` is enough for normal use.** A pre-built React UI ships in `frontend/dist/`.
+
+Optional:
+
+- `npm run seed` — load demo data (only if the database is empty)
+- `npm run build:frontend` — recompile the UI after editing `frontend/src/`, or if startup reports `Frontend → Legacy HTML`
 
 `npm start` runs the TypeScript server via `tsx` — no backend build step. On startup you'll see:
 
