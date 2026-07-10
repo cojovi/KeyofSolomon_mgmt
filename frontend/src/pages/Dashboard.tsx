@@ -247,6 +247,55 @@ function TaskColumn({ label, icon: Icon, accent, tasks, done, max = 12 }: {
   );
 }
 
+function ActiveTaskRail({ tasks }: { tasks: Task[] }) {
+  if (!tasks.length) {
+    return (
+      <div className="mx-3 mb-2 rounded-xl border border-line bg-panel2 px-3 py-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <Zap size={13} className="text-cyan" />
+          <span className="font-mono text-[12px] tracking-[2px] uppercase text-cyan">Active Tasks</span>
+          <span className="ml-auto font-mono text-[11px] text-faint">clear</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-3 mb-2 rounded-xl border border-cyan/20 bg-panel2 px-3 py-2 flex-shrink-0">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Zap size={13} className="text-cyan" />
+        <span className="font-mono text-[12px] tracking-[2px] uppercase text-cyan">Active Tasks</span>
+        <span className="font-display font-bold text-[15px] text-cyan">{tasks.length}</span>
+        <span className="ml-auto font-mono text-[11px] text-faint">
+          {tasks.length > 3 ? `top 3 / +${tasks.length - 3}` : "now / next"}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {tasks.slice(0, 3).map((t) => {
+          const due = dueLabel(t.dueDate);
+          const pc = PRIORITY_COLOR[t.priority ?? ""] ?? C.dim;
+          return (
+            <div key={t.id} className="min-w-0 rounded-lg border border-line bg-[#070b14]/80 px-2.5 py-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: pc, boxShadow: `0 0 6px ${pc}` }}
+                />
+                <span className="text-[13px] text-[#dbe8fa] truncate flex-1">{t.title}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 font-mono text-[10px] text-faint">
+                <span className="uppercase tracking-wide">{t.status.replace("_", " ")}</span>
+                {t.area && <span className="uppercase tracking-wide truncate">{t.area}</span>}
+                {due && <span className={`${due.cls} ml-auto flex-shrink-0`}>{due.text}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── ticker ─────────────────────────────────────────────────────────────────────
 
 function Ticker({ items }: { items: TickerItem[] }) {
@@ -480,6 +529,20 @@ export function Dashboard() {
   const tasks = data?.tasks;
   const agentActions = data?.agentActions ?? [];
   const lastAction = agentActions[0];
+  const activeTasks = (() => {
+    if (!tasks) return [];
+    const seen = new Set<string>();
+    return [
+      ...tasks.inProgress,
+      ...tasks.dueToday,
+      ...tasks.todo,
+      ...tasks.waiting,
+    ].filter((task) => {
+      if (seen.has(task.id)) return false;
+      seen.add(task.id);
+      return true;
+    });
+  })();
 
   const agentState: AgentState = (() => {
     if (pendingApprovals > 0) return "attention";
@@ -546,6 +609,7 @@ export function Dashboard() {
               <AllLink to="/app/tasks" color={C.blue} />
             </div>
           </div>
+          <ActiveTaskRail tasks={activeTasks} />
           <div className="flex-1 min-h-0 grid grid-cols-3 grid-rows-2 gap-2.5 px-3 pb-3">
             <TaskColumn label="In Progress" icon={Activity} accent={C.cyan} tasks={tasks?.inProgress ?? []} />
             <TaskColumn label="Due Today" icon={CalendarClock} accent={C.amber} tasks={tasks?.dueToday ?? []} />
