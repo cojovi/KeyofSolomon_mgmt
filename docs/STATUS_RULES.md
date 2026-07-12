@@ -15,6 +15,15 @@ Transitions: any → any is allowed (this is a personal tool, not a workflow eng
 
 Agents changing task status **must supply a reason** (see AGENT_API.md).
 
+### Main tasks and subtasks
+
+- A task with no `parentTaskId` is a main task. A task with `parentTaskId` is a subtask.
+- Hierarchy is limited to one level; subtasks cannot contain more subtasks.
+- A main task cannot move to `done` while any non-archived subtask is still open.
+- Archived subtasks do not block parent completion.
+- Active subtasks cannot be added to a completed parent. Reopen the parent first.
+- Parent status does not otherwise change automatically when a subtask changes.
+
 ## Project statuses
 
 | Status | Meaning |

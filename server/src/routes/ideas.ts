@@ -140,6 +140,7 @@ export function convertIdea(
       tags: overrides.tags ?? idea.tags,
       dueDate: overrides.dueDate,
       agentCandidate: overrides.agentCandidate ?? false,
+      source: "idea_conversion",
     });
   } else {
     const t = now();

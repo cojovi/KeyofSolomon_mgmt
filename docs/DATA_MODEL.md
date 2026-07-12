@@ -30,6 +30,9 @@ Task {
   title: string               // required
   description?: string
   area?: string               // work, personal, home, coding, business, errands…
+  parentTaskId?: string       // null/absent = main task; task ID = subtask of that task
+  source: "user" | "agent" | "fast_capture" | "embedded_ai"
+        | "webhook" | "idea_conversion" | "seed"
   status: "todo" | "in_progress" | "waiting" | "blocked" | "done" | "archived"
   priority?: "low" | "medium" | "high" | "urgent"
   dueDate?: string
@@ -41,6 +44,17 @@ Task {
   archivedAt?: string
 }
 ```
+
+Task hierarchy is intentionally one level deep: a main task may have subtasks, but a
+subtask cannot have children of its own. API responses also derive
+`parentTaskTitle`, `subtaskCount`, `completedSubtaskCount`, and
+`subtaskPlanSource` for display; these are not stored columns.
+`subtaskPlanSource` is the common child source or `mixed`. `GET /tasks/:id` adds
+`parentTask` and `subtasks`.
+
+Main tasks with open subtasks cannot be completed. Finish or archive every child
+first. A completed main task must be reopened before an active subtask can be added
+or reopened beneath it.
 
 ## Idea
 
@@ -159,3 +173,4 @@ Only the most recent summary per type is returned by default from `GET /ai/summa
 | `aiModel` | `""` | Model name (defaults per provider if blank) |
 | `aiBaseUrl` | `""` | Base URL for Ollama (default: `http://localhost:11434`) |
 | `captureAutoClassify` | `true` | `true` = use AI on `/capture` requests |
+| `captureAutoBreakdown` | `true` | `true` = embedded AI may create the initial subtask plan during Fast Capture |

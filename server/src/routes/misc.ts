@@ -178,6 +178,12 @@ const SETTING_KEYS = [
   "animationSpeed",
   "reducedMotion",
   "defaultDashboardMode",
+  "aiProvider",
+  "aiApiKey",
+  "aiModel",
+  "aiBaseUrl",
+  "captureAutoClassify",
+  "captureAutoBreakdown",
 ];
 
 settingsRouter.get("/", (_req, res) => {
@@ -186,6 +192,9 @@ settingsRouter.get("/", (_req, res) => {
 
 settingsRouter.patch("/", (req, res) => {
   const b = req.body || {};
+  if (b.aiProvider !== undefined && !["none", "anthropic", "openai", "openrouter", "ollama"].includes(String(b.aiProvider))) {
+    return fail(res, 400, "VALIDATION_ERROR", "Invalid AI provider");
+  }
   const applied: Record<string, string> = {};
   for (const key of SETTING_KEYS) {
     if (b[key] !== undefined) {
@@ -275,7 +284,7 @@ export const webhooksRouter = Router();
 
 webhooksRouter.post("/task", (req, res) => {
   try {
-    const task = insertTask(req.body || {});
+    const task = insertTask({ ...(req.body || {}), source: "webhook" });
     createNote({
       parentType: "task", parentId: task.id,
       body: `Created via webhook${req.body?.source ? ` from ${req.body.source}` : ""}`,
@@ -518,7 +527,7 @@ captureRouter.post("/", async (req, res) => {
     // manual type specified or auto-classify disabled
     const type = forceType || "task";
     let created: any;
-    if (type === "task") created = insertTask({ title: text, area: b.area });
+    if (type === "task") created = insertTask({ title: text, area: b.area, source: "fast_capture" });
     else if (type === "idea") created = insertIdea({ title: text });
     else if (type === "note") {
       // create a floating note — attach to a special "capture" bucket or return raw
@@ -533,22 +542,49 @@ captureRouter.post("/", async (req, res) => {
   try {
     const classification = await classifyCapture(text);
     let created: any;
+    let subtasks: any[] = [];
     if (classification.type === "task") {
-      created = insertTask({ title: classification.title, area: classification.area });
+      const result = db.transaction(() => {
+        const parent = insertTask({
+          title: classification.title,
+          description: classification.title.toLowerCase() === text.toLowerCase() ? undefined : text,
+          area: classification.area,
+          source: "fast_capture",
+        });
+        const plannedSubtasks = settings.captureAutoBreakdown === "true" ? classification.subtasks : [];
+        const children = plannedSubtasks.map((title) => insertTask({
+          title,
+          area: classification.area,
+          parentTaskId: parent.id,
+          source: "embedded_ai",
+        }));
+        if (children.length > 0) {
+          createNote({
+            parentType: "task",
+            parentId: parent.id,
+            body: `Embedded AI created the initial ${children.length}-item subtask plan during Fast Capture.`,
+            type: "note",
+            createdBy: "system",
+          });
+        }
+        return { parent, children };
+      })();
+      created = result.parent;
+      subtasks = result.children;
     } else if (classification.type === "idea") {
       created = insertIdea({ title: classification.title });
     } else if (classification.type === "project") {
       // create as idea with "project" note, agent can promote later
       created = insertIdea({ title: classification.title, category: "project-seed" });
     } else {
-      created = insertTask({ title: classification.title });
+      created = insertTask({ title: classification.title, source: "fast_capture" });
     }
     broadcast("data-changed", { entity: classification.type, op: "create" });
-    ok(res, { classified: true, ...classification, created }, 201);
+    ok(res, { classified: true, ...classification, created, subtasks }, 201);
   } catch (e) {
     if (e instanceof AIError) {
       // fallback: save as task without classification
-      const created = insertTask({ title: text });
+      const created = insertTask({ title: text, source: "fast_capture" });
       broadcast("data-changed", { entity: "task", op: "create" });
       ok(res, { classified: false, type: "task", aiError: e.message, created }, 201);
       return;

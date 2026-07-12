@@ -27,6 +27,18 @@ Every response uses the envelope `{ "success": bool, "data": ..., "error": {code
 8. Do NOT mark tasks `done` unless explicitly told to, or you yourself completed the work.
 9. Tasks with `agentCandidate: true` are your **preferred work targets** — the user flagged those for you.
 
+## Responsibility boundary
+
+Key of Solomon's embedded AI and the external agent have separate ownership:
+
+| System | Owns | Must not do |
+|---|---|---|
+| Embedded AI | Fast Capture classification, optional initial subtask structure, stored summaries | Ongoing task management, status changes, execution |
+| Hermes / external agent | Execution, status changes, notes, research, deliberate plan extensions | Recreate an existing task or generate a second subtask plan |
+
+Tasks expose `source`; main tasks also expose derived `subtaskPlanSource`. Use
+those fields together with `subtaskCount` before creating work.
+
 ## What requires approval
 
 Actions in the **needs-approval** tier — submit a `POST /approvals` request before attempting them:
@@ -69,7 +81,9 @@ Full dashboard state (same shape as `GET /dashboard/state`). Calling it logs a `
 
 ### `GET /agent/tasks/available`
 
-Open tasks (`todo` / `in_progress` / `waiting`), sorted: agent candidates first, then priority, then recency. Max 50.
+Open tasks (`todo` / `in_progress` / `waiting`), sorted: agent candidates first,
+then priority, then recency. Max 50. Results include `source`, `subtaskCount`, and
+`subtaskPlanSource`.
 
 ---
 
@@ -80,10 +94,34 @@ Open tasks (`todo` / `in_progress` / `waiting`), sorted: agent candidates first,
 ```json
 { "title": "Re-run failing backup job", "description": "…", "area": "coding",
   "priority": "high", "dueDate": "2026-06-15", "tags": ["backup"],
-  "agentCandidate": true, "reason": "User asked me to track this" }
+  "agentCandidate": true, "parentTaskId": null,
+  "reason": "User asked me to track this" }
 ```
 
-Required: `title`. Returns `{ task, action }` (201).
+Required: `title`. Returns `{ task, action }` (201). Exact normalized duplicates
+among open sibling tasks return `409 DUPLICATE_TASK` with the existing task.
+
+Use the atomic endpoint below for a complete subtask plan. Single subtask creation
+with `parentTaskId` is retained for compatibility, but adding to an existing plan
+requires `extendExistingPlan: true` and a reason.
+
+### `POST /agent/tasks/:id/create-subtasks`
+
+```json
+{
+  "subtasks": [
+    { "title": "Find the recommended provider", "priority": "high" },
+    { "title": "Confirm availability" },
+    { "title": "Book the appointment" }
+  ],
+  "reason": "Initial execution plan for the captured outcome"
+}
+```
+
+Creates 1-8 subtasks transactionally and logs one note/action. If any active
+subtasks already exist, returns `409 SUBTASK_PLAN_EXISTS`. To add a genuinely new
+requirement, resend with `extendExistingPlan: true` and explain why. Existing or
+payload duplicate titles return `DUPLICATE_TASK` / `VALIDATION_ERROR`.
 
 ### `POST /agent/tasks/:id/update-status`
 
@@ -94,6 +132,17 @@ Required: `title`. Returns `{ task, action }` (201).
 - `status` must be one of `todo | in_progress | waiting | blocked | done | archived`.
 - `reason` is **required**.
 - Side effects: an `agent_update` note is added to the task, a `status_change` action is logged.
+- A main task cannot be marked `done` until all non-archived subtasks are done.
+
+### `POST /agent/tasks/:id/set-parent`
+
+```json
+{ "parentTaskId": "task_main", "reason": "This is a step toward the same user outcome" }
+```
+
+Set `parentTaskId` to an existing main task to make the target a subtask, or set
+it to `null` to detach it. `reason` is required. The endpoint validates the
+one-level hierarchy and logs both a task note and agent action.
 
 ### `POST /agent/tasks/:id/add-note`
 ### `POST /agent/projects/:id/add-note`
@@ -205,6 +254,16 @@ Returns array of all pending approvals. Useful to check if you have outstanding 
 2. Raw thought/maybe-later → POST /agent/ideas/create
 3. Ambiguous               → POST /agent/ideas/create + add-note with what needs review
 4. Needs fast AI classify  → POST /capture   {text:"…"}   (skips agent endpoint)
+```
+
+### Break a task into steps
+
+```
+1. GET  /agent/tasks/available                       → inspect subtaskCount/subtaskPlanSource
+2. If subtaskCount > 0                               → work the existing plan
+3. If subtaskCount = 0: POST /agent/tasks/:id/create-subtasks
+4. Only for a new requirement                        → extendExistingPlan:true + reason
+5. Complete the main task only after every active subtask is done
 ```
 
 ### You hit a blocker

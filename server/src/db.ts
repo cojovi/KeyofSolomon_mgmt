@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT,
   area TEXT,
+  parentTaskId TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  source TEXT NOT NULL DEFAULT 'user',
   status TEXT NOT NULL DEFAULT 'todo',
   priority TEXT,
   dueDate TEXT,
@@ -130,6 +132,22 @@ CREATE INDEX IF NOT EXISTS idx_approvals_status ON agent_approvals(status);
 CREATE INDEX IF NOT EXISTS idx_ai_summaries_type ON ai_summaries(type);
 `);
 
+// Lightweight, idempotent migrations for existing local databases.
+const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+if (!taskColumns.some((column) => column.name === "parentTaskId")) {
+  db.exec("ALTER TABLE tasks ADD COLUMN parentTaskId TEXT REFERENCES tasks(id) ON DELETE SET NULL");
+}
+if (!taskColumns.some((column) => column.name === "source")) {
+  db.exec("ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'user'");
+  db.exec(`UPDATE tasks SET source = 'agent'
+    WHERE id IN (
+      SELECT targetId FROM agent_actions
+      WHERE actionType = 'create' AND targetType = 'task' AND targetId IS NOT NULL
+    )`);
+}
+db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parentTaskId)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_source ON tasks(source)");
+
 // Default settings
 const defaults: Record<string, string> = {
   dashboardRefreshSeconds: "30",
@@ -141,6 +159,7 @@ const defaults: Record<string, string> = {
   aiModel: "",
   aiBaseUrl: "",
   captureAutoClassify: "true",
+  captureAutoBreakdown: "true",
 };
 const insertSetting = db.prepare(
   "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)"

@@ -15,7 +15,7 @@ Route: `http://localhost:8787/dashboard` — fullscreen, read-only, designed for
 │ ACTIVE PROJECTS │ 6 status columns (3 × 2):         │ OPENCLAW AGENT          │
 │  icon·progress· │   In Progress · Due Today ·       │  avatar · state ·       │
 │  status · due   │   Blocked / To Do · Waiting ·     │  recent actions         │
-├─────────────────┤   Done Today                      ├─────────────────────────┤
+├─────────────────┤ main-task rail + Done Today       ├─────────────────────────┤
 │ RECENT ACTIVITY │ each column shows a count and     │ UPCOMING DEADLINES      │
 │  color-coded by │ scrolls independently             │ IDEAS (mini list)       │
 │  note type      │                                   │ AI INSIGHT              │
@@ -53,6 +53,9 @@ AI summaries are fetched separately via `GET /api/v1/ai/summaries` and displayed
 - **tasks.dueToday** — open tasks whose due date is today (priority order). Powers the Due Today column + KPI.
 - **tasks.completedToday** — tasks marked done today (newest first). Powers the Done Today column + KPI.
 - **tasks.dueSoon** — open tasks due within 3 days, soonest first.
+- **main-task rail** — deduplicated open top-level tasks only. Subtasks stay in
+  their status columns and use a branch marker; main tasks show completed/total
+  subtask progress.
 - **tasks.\*** — capped at 8 per group, 6 rendered per column (with "+N more").
 - **summary.dueToday / overdue / completedToday** — counts for the header KPI tiles (Overdue = open tasks past their due date).
 - **upcomingDeadlines** — tasks + projects with a due date in the next 7 days (and any overdue), soonest first, max 10. Powers the Upcoming Deadlines panel.

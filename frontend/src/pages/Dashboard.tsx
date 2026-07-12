@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Bot, Zap, Activity, AlertTriangle, CheckCircle2, CalendarClock, Hourglass,
   ListTodo, Lightbulb, FolderKanban, Sparkles, ArrowRight,
-  Code2, Briefcase, Home, Box, FolderClock, Flame,
+  Code2, Briefcase, Home, Box, FolderClock, Flame, CornerDownRight, ListTree,
 } from "lucide-react";
 import { api, connectSSE } from "../lib/api";
 import type {
@@ -207,6 +207,7 @@ function TaskItem({ t, done }: { t: Task; done?: boolean }) {
     <div className="flex items-start gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.04] transition-colors">
       <span className="w-2 h-2 rounded-full mt-[7px] flex-shrink-0"
         style={{ background: pc, boxShadow: pc !== "transparent" ? `0 0 6px ${pc}` : "none" }} />
+      {t.parentTaskId && <CornerDownRight size={12} className="text-cyan/60 mt-0.5 flex-shrink-0" />}
       <div className="min-w-0 flex-1">
         <div className={`text-[14px] leading-snug ${done ? "text-faint line-through" : "text-[#dbe8fa]"}`}>{t.title}</div>
         <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px] text-faint">
@@ -286,6 +287,11 @@ function ActiveTaskRail({ tasks }: { tasks: Task[] }) {
               <div className="flex items-center gap-2 mt-0.5 font-mono text-[10px] text-faint">
                 <span className="uppercase tracking-wide">{t.status.replace("_", " ")}</span>
                 {t.area && <span className="uppercase tracking-wide truncate">{t.area}</span>}
+                {!!t.subtaskCount && (
+                  <span className="inline-flex items-center gap-1 text-cyan flex-shrink-0">
+                    <ListTree size={9} />{t.completedSubtaskCount ?? 0}/{t.subtaskCount}
+                  </span>
+                )}
                 {due && <span className={`${due.cls} ml-auto flex-shrink-0`}>{due.text}</span>}
               </div>
             </div>
@@ -538,6 +544,7 @@ export function Dashboard() {
       ...tasks.todo,
       ...tasks.waiting,
     ].filter((task) => {
+      if (task.parentTaskId) return false;
       if (seen.has(task.id)) return false;
       seen.add(task.id);
       return true;

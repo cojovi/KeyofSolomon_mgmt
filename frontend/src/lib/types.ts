@@ -1,5 +1,6 @@
 export type ProjectStatus = "planning" | "active" | "paused" | "blocked" | "completed" | "archived";
 export type TaskStatus = "todo" | "in_progress" | "waiting" | "blocked" | "done" | "archived";
+export type TaskSource = "user" | "agent" | "fast_capture" | "embedded_ai" | "webhook" | "idea_conversion" | "seed";
 export type IdeaStatus = "captured" | "reviewing" | "possible" | "converted" | "archived";
 export type Priority = "low" | "medium" | "high" | "urgent";
 export type NoteType = "note" | "progress" | "decision" | "blocker" | "agent_update";
@@ -28,6 +29,9 @@ export interface Task {
   title: string;
   description?: string;
   area?: string;
+  parentTaskId?: string;
+  parentTaskTitle?: string;
+  source: TaskSource;
   status: TaskStatus;
   priority?: Priority;
   dueDate?: string;
@@ -37,6 +41,16 @@ export interface Task {
   updatedAt: string;
   completedAt?: string;
   archivedAt?: string;
+  subtaskCount?: number;
+  completedSubtaskCount?: number;
+  subtaskPlanSource?: TaskSource | "mixed";
+}
+
+export interface TaskDetailData extends Task {
+  parentTask?: Task | null;
+  subtasks: Task[];
+  notes: Note[];
+  attachments: Attachment[];
 }
 
 export interface Idea {
@@ -163,6 +177,7 @@ export interface Settings {
   aiModel: string;
   aiBaseUrl: string;
   captureAutoClassify: string;
+  captureAutoBreakdown: string;
 }
 
 export interface APIResponse<T> {
@@ -179,4 +194,5 @@ export interface CaptureResult {
   area?: string;
   aiError?: string;
   created: Task | Idea | Record<string, unknown>;
+  subtasks?: Task[];
 }

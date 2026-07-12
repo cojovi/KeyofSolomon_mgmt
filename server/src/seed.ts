@@ -152,8 +152,8 @@ const tasks = [
 ];
 
 const insertTask = db.prepare(
-  `INSERT INTO tasks (id, title, description, area, status, priority, dueDate, tags, agentCandidate, createdAt, updatedAt, completedAt, archivedAt)
-   VALUES (@id, @title, @description, @area, @status, @priority, @dueDate, @tags, @agentCandidate, @createdAt, @updatedAt, @completedAt, @archivedAt)`
+  `INSERT INTO tasks (id, title, description, area, source, status, priority, dueDate, tags, agentCandidate, createdAt, updatedAt, completedAt, archivedAt)
+   VALUES (@id, @title, @description, @area, 'seed', @status, @priority, @dueDate, @tags, @agentCandidate, @createdAt, @updatedAt, @completedAt, @archivedAt)`
 );
 tasks.forEach((x) => insertTask.run(x));
 

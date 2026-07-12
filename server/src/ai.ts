@@ -151,32 +151,62 @@ export async function classifyCapture(text: string): Promise<{
   title: string;
   area?: string;
   confidence: number;
+  subtasks: string[];
 }> {
   const prompt = `Classify this input into ONE of: task, idea, project, note.
 
 Rules:
-- task: something to DO (action items, errands, concrete next steps)
+- task: one outcome to complete, even when reaching it requires several concrete steps
 - idea: a creative thought, inspiration, or something to explore later
-- project: a larger initiative with multiple steps
+- project: a sustained initiative with multiple distinct outcomes, not merely one task with steps
 - note: a reminder, reference info, or observation
+- for a multi-step task, include 2-6 concise, non-overlapping subtasks in execution order
+- for a simple task, idea, project, or note, use an empty subtasks array
+- subtasks must be independently completable actions; do not repeat the main title
 
 Input: "${text}"
 
 Respond with ONLY valid JSON like:
-{"type":"task","title":"Buy dog food","area":"errands","confidence":0.95}
+{"type":"task","title":"Schedule the doctor appointment","area":"health","confidence":0.95,"subtasks":["Find the recommended provider","Confirm availability and insurance","Book the appointment"]}
 
 "area" for tasks only: work, personal, home, coding, business, errands, health, finance
 "title" should be clean and concise.`;
 
   try {
-    const raw = await callAI(prompt, "You are a classification assistant. Respond only with valid JSON.", 150);
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON in response");
-    return JSON.parse(match[0]);
-  } catch {
-    // fallback: treat as task
-    return { type: "task", title: text.trim(), confidence: 0 };
+    const raw = await callAI(prompt, "You are a classification assistant. Respond only with valid JSON.", 500);
+    return parseCaptureClassification(raw, text);
+  } catch (error) {
+    if (error instanceof AIError) throw error;
+    throw new AIError("INVALID_RESPONSE", "AI classification returned an invalid response");
   }
+}
+
+export function parseCaptureClassification(raw: string, fallbackTitle: string): {
+  type: "task" | "idea" | "project" | "note";
+  title: string;
+  area?: string;
+  confidence: number;
+  subtasks: string[];
+} {
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON in response");
+  const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+  const allowedTypes = ["task", "idea", "project", "note"];
+  const type = allowedTypes.includes(String(parsed.type))
+    ? parsed.type as "task" | "idea" | "project" | "note"
+    : "task";
+  const title = typeof parsed.title === "string" && parsed.title.trim()
+    ? parsed.title.trim()
+    : fallbackTitle.trim();
+  const area = typeof parsed.area === "string" ? parsed.area.trim() : undefined;
+  const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
+  const subtasks = type === "task" && Array.isArray(parsed.subtasks)
+    ? [...new Set(parsed.subtasks
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter((item) => item && item.toLowerCase() !== title.toLowerCase()))].slice(0, 6)
+    : [];
+  return { type, title, area, confidence, subtasks };
 }
 
 /** Generate a dashboard summary of a given type */

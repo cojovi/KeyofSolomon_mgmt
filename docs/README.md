@@ -44,7 +44,9 @@ npm run dev:frontend     # Vite on :5173 (HMR, proxies /api → :8787)
 ## Main features
 
 - Projects, tasks, and ideas with full status lifecycles, priorities, tags, due dates
-- Fast Capture: type it, press Enter, AI classifies into task/idea/project/note
+- One-level task hierarchy with main-task progress, collapsible subtasks, and guarded completion
+- Fast Capture: type it, press Enter, AI classifies it and can break multi-step outcomes into subtasks
+- Enforced AI ownership: embedded AI structures intake; Hermes executes and deliberately extends plans
 - Agent Approval System: safe actions run immediately; destructive actions require user approval
 - AI Summaries: 5 summary types (Today's Focus, What's Blocked, Week Progress, Ideas to Revisit, Agent Suggestions) via Anthropic, OpenAI, OpenRouter, or local Ollama
 - Live dashboard: scrolling ticker, animated project cards, task grid, notes feed, agent avatar (4 states), AI summaries panel

@@ -159,6 +159,42 @@ curl -s -X POST $BASE/agent/tasks/create -H "$AUTH" -H "$CT" -H "$AG" -d '{
 }'
 ```
 
+### Agent creates a main task with subtasks
+
+```bash
+MAIN=$(curl -s -X POST $BASE/agent/tasks/create -H "$AUTH" -H "$CT" -H "$AG" -d '{
+  "title": "Schedule the TRT appointment",
+  "area": "health",
+  "reason": "User asked for one tracked appointment outcome"
+}' | jq -r '.data.task.id')
+
+curl -s -X POST $BASE/agent/tasks/$MAIN/create-subtasks -H "$AUTH" -H "$CT" -H "$AG" -d '{
+  "subtasks": [
+    {"title":"Find the recommended TRT provider","priority":"high"},
+    {"title":"Confirm availability and new-patient acceptance"},
+    {"title":"Book the appointment"}
+  ],
+  "reason": "Initial execution plan for scheduling the appointment"
+}'
+```
+
+If a genuinely new requirement appears later, extend the plan explicitly:
+
+```bash
+curl -s -X POST $BASE/agent/tasks/$MAIN/create-subtasks -H "$AUTH" -H "$CT" -H "$AG" -d '{
+  "subtasks": [{"title":"Confirm insurance coverage"}],
+  "extendExistingPlan": true,
+  "reason": "Insurance verification became a required booking step"
+}'
+```
+
+To link an existing task instead of creating a new one:
+
+```bash
+curl -s -X POST $BASE/agent/tasks/$TASK/set-parent -H "$AUTH" -H "$CT" -H "$AG" \
+  -d '{"parentTaskId":"'"$MAIN"'","reason":"This task is part of the same outcome"}'
+```
+
 ### Agent updates status (reason required!)
 
 ```bash

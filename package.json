@@ -9,6 +9,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "build:frontend": "cd frontend && npm install && npm run build",
     "build": "npm run build:frontend",
+    "test": "tsx --test server/test/*.test.ts",
     "seed": "tsx server/src/seed.ts",
     "seed:force": "tsx server/src/seed.ts --force"
   },

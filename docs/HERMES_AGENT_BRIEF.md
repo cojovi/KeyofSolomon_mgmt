@@ -41,6 +41,34 @@ When working this project, use this loop:
 6. If the action is destructive or user-visible in a bad way, request approval first.
 7. Keep going until the task is actually resolved or blocked.
 
+## Breaking work into subtasks
+
+When one user outcome needs several concrete steps, keep the outcome as one main
+task and create each step with `parentTaskId` set to that main task's ID. Do not
+create a flat cluster of peer tasks for one outcome.
+
+1. Check `/api/v1/agent/tasks/available` for an existing main task and its
+   `subtaskCount` / `subtaskPlanSource`.
+2. If a plan exists, work it. Do not decompose the task again.
+3. If no plan exists, create 2-6 steps atomically with
+   `POST /agent/tasks/:id/create-subtasks`.
+4. Extend an existing plan only for a newly discovered requirement, using
+   `extendExistingPlan: true` plus a concrete reason.
+5. Work and complete subtasks first; the API rejects early parent completion.
+
+Use separate main tasks only when the items represent genuinely independent
+outcomes. Task hierarchy is one level deep.
+
+## AI ownership boundary
+
+- Embedded AI is limited to Fast Capture classification, the optional initial
+  subtask plan, and read-only summaries.
+- Hermes owns ongoing judgment, execution, status changes, notes, and deliberate
+  plan extensions.
+- Treat `source` and `subtaskPlanSource` as ownership signals, not decoration.
+- `DUPLICATE_TASK` means reuse the existing task.
+- `SUBTASK_PLAN_EXISTS` means work the existing plan; do not retry with altered wording.
+
 ## Safe actions
 
 Proceed directly with:
@@ -74,6 +102,8 @@ Request approval first for:
 - `GET /api/v1/agent/tasks/available`
 - `GET /api/v1/dashboard/state`
 - `POST /api/v1/agent/tasks/create`
+- `POST /api/v1/agent/tasks/:id/create-subtasks`
+- `POST /api/v1/agent/tasks/:id/set-parent`
 - `POST /api/v1/agent/tasks/:id/update-status`
 - `POST /api/v1/agent/tasks/:id/add-note`
 - `POST /api/v1/agent/actions/log`

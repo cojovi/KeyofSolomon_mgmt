@@ -85,8 +85,8 @@ See [DASHBOARD.md](./DASHBOARD.md) for the full shape and selection rules.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/tasks` | List. Filters: `status`, `area`, `priority`, `q`, `dueBefore`, `agentCandidate=true`, `includeArchived=true` |
-| GET | `/tasks/:id` | One task including `notes` + `attachments` |
+| GET | `/tasks` | List. Filters: `status`, `area`, `priority`, `q`, `dueBefore`, `agentCandidate=true`, `includeArchived=true`, `topLevel=true`, `parentTaskId` |
+| GET | `/tasks/:id` | One task including `parentTask`, `subtasks`, `notes`, and `attachments` |
 | POST | `/tasks` | Create. Required: `title` |
 | PATCH | `/tasks/:id` | Partial update |
 | DELETE | `/tasks/:id` | Soft-archive |
@@ -94,6 +94,16 @@ See [DASHBOARD.md](./DASHBOARD.md) for the full shape and selection rules.
 | POST | `/tasks/:id/complete` | Mark done |
 | GET/POST | `/tasks/:id/notes` | Notes / add note |
 | GET/POST | `/tasks/:id/attachments` | Attachments |
+
+Task create and patch bodies accept `parentTaskId`. Omit it or send `null` for a
+main task; send an existing top-level task ID for a subtask. Task list/detail
+responses include derived `parentTaskTitle`, `subtaskCount`, and
+`completedSubtaskCount`. `source` records task provenance and derived
+`subtaskPlanSource` identifies who created the active child plan. Only one
+hierarchy level is supported.
+
+Completing a main task with open subtasks returns `VALIDATION_ERROR`; complete or
+archive the children first.
 
 ## Ideas
 
@@ -178,7 +188,12 @@ Response:
 }
 ```
 
-If AI is not configured or classification fails, falls back to creating a task with the raw text as title. `classified: false` and `aiError` are set in that case.
+For an auto-classified multi-step task, Fast Capture creates one main task and up
+to six ordered subtasks. The response keeps the main task in `created` and returns
+the children in `subtasks`. Forced task captures and AI fallbacks create one task.
+
+If AI is not configured or classification fails, it falls back to creating a task
+with the raw text as title. `classified: false` and `aiError` are set in that case.
 
 ## Settings
 
@@ -187,7 +202,9 @@ If AI is not configured or classification fails, falls back to creating a task w
 | GET | `/settings` | All settings as `{key: value}` |
 | PATCH | `/settings` | Update any settings key |
 
-Patchable keys: `dashboardRefreshSeconds`, `animationSpeed`, `reducedMotion`, `defaultDashboardMode`, `aiProvider`, `aiApiKey`, `aiModel`, `aiBaseUrl`, `captureAutoClassify`.
+Patchable keys: `dashboardRefreshSeconds`, `animationSpeed`, `reducedMotion`,
+`defaultDashboardMode`, `aiProvider`, `aiApiKey`, `aiModel`, `aiBaseUrl`,
+`captureAutoClassify`, `captureAutoBreakdown`.
 
 ## Data export / import
 

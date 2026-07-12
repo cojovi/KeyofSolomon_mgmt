@@ -14,6 +14,10 @@ export function buildDashboardState() {
   const today = nowIso.slice(0, 10); // YYYY-MM-DD
   const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
   const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const taskSelect = `SELECT t.*, p.title AS parentTaskTitle,
+    (SELECT COUNT(*) FROM tasks c WHERE c.parentTaskId = t.id AND c.status != 'archived') AS subtaskCount,
+    (SELECT COUNT(*) FROM tasks c WHERE c.parentTaskId = t.id AND c.status = 'done') AS completedSubtaskCount
+    FROM tasks t LEFT JOIN tasks p ON p.id = t.parentTaskId`;
 
   const summary = {
     activeProjects: count("SELECT COUNT(*) n FROM projects WHERE status = 'active'"),
@@ -41,20 +45,20 @@ export function buildDashboardState() {
   );
 
   const tasks = {
-    inProgress: all("SELECT * FROM tasks WHERE status = 'in_progress' ORDER BY updatedAt DESC LIMIT 8"),
-    todo: all("SELECT * FROM tasks WHERE status = 'todo' ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, updatedAt DESC LIMIT 8"),
-    waiting: all("SELECT * FROM tasks WHERE status = 'waiting' ORDER BY updatedAt DESC LIMIT 8"),
-    blocked: all("SELECT * FROM tasks WHERE status = 'blocked' ORDER BY updatedAt DESC LIMIT 8"),
+    inProgress: all(`${taskSelect} WHERE t.status = 'in_progress' ORDER BY t.updatedAt DESC LIMIT 8`),
+    todo: all(`${taskSelect} WHERE t.status = 'todo' ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.updatedAt DESC LIMIT 8`),
+    waiting: all(`${taskSelect} WHERE t.status = 'waiting' ORDER BY t.updatedAt DESC LIMIT 8`),
+    blocked: all(`${taskSelect} WHERE t.status = 'blocked' ORDER BY t.updatedAt DESC LIMIT 8`),
     dueSoon: all(
-      "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND dueDate <= ? ORDER BY dueDate ASC LIMIT 8",
+      `${taskSelect} WHERE t.status NOT IN ('done','archived') AND t.dueDate IS NOT NULL AND t.dueDate <= ? ORDER BY t.dueDate ASC LIMIT 8`,
       soon
     ),
     dueToday: all(
-      "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND substr(dueDate,1,10) = ? ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, dueDate ASC LIMIT 8",
+      `${taskSelect} WHERE t.status NOT IN ('done','archived') AND t.dueDate IS NOT NULL AND substr(t.dueDate,1,10) = ? ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, t.dueDate ASC LIMIT 8`,
       today
     ),
     completedToday: all(
-      "SELECT * FROM tasks WHERE status = 'done' AND completedAt IS NOT NULL AND substr(completedAt,1,10) = ? ORDER BY completedAt DESC LIMIT 8",
+      `${taskSelect} WHERE t.status = 'done' AND t.completedAt IS NOT NULL AND substr(t.completedAt,1,10) = ? ORDER BY t.completedAt DESC LIMIT 8`,
       today
     ),
   };

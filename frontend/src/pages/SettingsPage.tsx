@@ -35,8 +35,8 @@ export function SettingsPage() {
   async function save() {
     setSaving(true);
     try {
-      // Settings are patched key by key
-      await api.patch("/settings", settings);
+      const saved = await api.patch<Settings>("/settings", settings);
+      setSettings(saved);
       toast("Settings saved");
     } catch (e: any) { toast(e.message, true); }
     finally { setSaving(false); }
@@ -72,21 +72,37 @@ export function SettingsPage() {
             onChange={(e) => set("reducedMotion", e.target.checked ? "true" : "false")} />
           <span className="text-sm text-dim">Reduced motion</span>
         </label>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" className="accent-cyan" checked={settings.captureAutoClassify !== "false"}
-            onChange={(e) => set("captureAutoClassify", e.target.checked ? "true" : "false")} />
-          <span className="text-sm text-dim">Auto-classify fast captures with AI</span>
-        </label>
       </section>
 
       {/* AI Provider */}
       <section className="card p-6 space-y-4">
-        <div className="zone-title mb-1"><span className="zone-dot bg-purple" />AI Provider</div>
+        <div className="zone-title mb-1"><span className="zone-dot bg-purple" />Embedded AI</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-line px-3 py-2">
+            <input type="checkbox" className="accent-cyan" checked={settings.captureAutoClassify !== "false"}
+              onChange={(e) => set("captureAutoClassify", e.target.checked ? "true" : "false")} />
+            <span className="text-sm text-dim">Classify Fast Capture</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-line px-3 py-2">
+            <input
+              type="checkbox"
+              className="accent-cyan"
+              checked={settings.captureAutoBreakdown !== "false"}
+              disabled={settings.captureAutoClassify === "false"}
+              onChange={(e) => set("captureAutoBreakdown", e.target.checked ? "true" : "false")}
+            />
+            <span className="text-sm text-dim">Create initial subtask plan</span>
+          </label>
+        </div>
         <div>
           <label className="text-xs font-mono text-dim mb-1 block">PROVIDER</label>
           <select className="select" value={provider} onChange={(e) => {
-            set("aiProvider", e.target.value);
-            set("aiModel", PROVIDER_MODELS[e.target.value]?.[0] ?? "");
+            const nextProvider = e.target.value;
+            set("aiProvider", nextProvider);
+            set("aiModel", PROVIDER_MODELS[nextProvider]?.[0] ?? "");
+            if (nextProvider === "ollama" && !settings.aiBaseUrl) {
+              set("aiBaseUrl", "http://localhost:11434");
+            }
           }}>
             {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
@@ -114,7 +130,7 @@ export function SettingsPage() {
             {provider === "ollama" && (
               <div>
                 <label className="text-xs font-mono text-dim mb-1 block">BASE URL</label>
-                <input className="input" value={settings.aiBaseUrl ?? "http://localhost:11434"}
+                <input className="input" value={settings.aiBaseUrl || "http://localhost:11434"}
                   onChange={(e) => set("aiBaseUrl", e.target.value)} />
               </div>
             )}
@@ -128,6 +144,7 @@ export function SettingsPage() {
                     onChange={(e) => set("aiApiKey", e.target.value)}
                     placeholder={`${provider === "anthropic" ? "sk-ant-" : "sk-"}…`} />
                   <button onClick={() => setShowKey((s) => !s)}
+                    title={showKey ? "Hide API key" : "Show API key"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-dim hover:text-[#dbe8fa]">
                     {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>

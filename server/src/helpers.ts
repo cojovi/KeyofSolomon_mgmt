@@ -48,6 +48,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
 export const PROJECT_STATUSES = ["planning", "active", "paused", "blocked", "completed", "archived"] as const;
 export const TASK_STATUSES = ["todo", "in_progress", "waiting", "blocked", "done", "archived"] as const;
+export const TASK_SOURCES = ["user", "agent", "fast_capture", "embedded_ai", "webhook", "idea_conversion", "seed"] as const;
 export const IDEA_STATUSES = ["captured", "reviewing", "possible", "converted", "archived"] as const;
 export const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export const NOTE_TYPES = ["note", "progress", "decision", "blocker", "agent_update"] as const;

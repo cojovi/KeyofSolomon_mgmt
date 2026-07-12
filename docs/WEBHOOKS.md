@@ -6,7 +6,9 @@ Four endpoints exist so external tools (Zapier, n8n, Shortcuts, scripts) can pus
 
 ### `POST /api/v1/webhooks/task`
 
-Body: same as task create (`title` required) plus optional `source` string. A system note "Created via webhook from `<source>`" is attached automatically.
+Body: same as task create (`title` required, optional `parentTaskId`) plus optional
+`source` string. A system note "Created via webhook from `<source>`" is attached
+automatically. `parentTaskId` must identify an existing main task.
 
 ```bash
 curl -X POST http://localhost:8787/api/v1/webhooks/task \

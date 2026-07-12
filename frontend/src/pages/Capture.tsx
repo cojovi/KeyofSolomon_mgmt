@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Zap, CheckCircle, Lightbulb, FolderOpen, StickyNote, ArrowLeft } from "lucide-react";
+import { Zap, CheckCircle, Lightbulb, FolderOpen, StickyNote, ArrowLeft, ListTree } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { CaptureResult } from "../lib/types";
@@ -139,6 +139,11 @@ export function Capture() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#dbe8fa] truncate">{item.inputText}</p>
                   {item.aiError && <p className="text-xs text-amber font-mono mt-0.5">⚠ {item.aiError}</p>}
+                  {!!item.subtasks?.length && (
+                    <p className="text-xs text-cyan font-mono mt-0.5 flex items-center gap-1">
+                      <ListTree size={11} />1 main task + {item.subtasks.length} subtasks
+                    </p>
+                  )}
                 </div>
                 <div className="flex-shrink-0 flex items-center gap-2">
                   {item.classified && (
