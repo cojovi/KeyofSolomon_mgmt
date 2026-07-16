@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Plus, Zap } from "lucide-react";
 import { api } from "../lib/api";
-import { useToast } from "./ui/Toast";
+import { NotificationCenter, useToast } from "./ui/Toast";
 
 type AddType = "task" | "idea";
 
@@ -78,6 +78,7 @@ export function QuickAdd() {
         <Plus size={14} />
         Add
       </button>
+      <NotificationCenter />
     </div>
   );
 }

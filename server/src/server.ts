@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { db, DB_PATH } from "./db.js";
 import { ok, authMiddleware, getToken } from "./helpers.js";
-import { addClient } from "./events.js";
+import { addClient } from "./sse.js";
 import { projectsRouter } from "./routes/projects.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { ideasRouter } from "./routes/ideas.js";
@@ -15,6 +15,9 @@ import {
 } from "./routes/misc.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { agentRouter } from "./routes/agent.js";
+import { integrationsRouter } from "./routes/integrations.js";
+import { notificationsRouter } from "./routes/notifications.js";
+import { startOpenClawDispatcher } from "./openclaw.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REACT_DIST = join(__dirname, "..", "..", "frontend", "dist");
@@ -91,6 +94,8 @@ api.use("/webhooks", webhooksRouter);
 api.use("/approvals", approvalsRouter);
 api.use("/ai", aiRouter);
 api.use("/capture", captureRouter);
+api.use("/integrations", integrationsRouter);
+api.use("/notifications", notificationsRouter);
 
 // agent action log at /agent/actions; agent-safe endpoints under /agent/*
 api.use("/agent/actions", agentActionsRouter);
@@ -119,6 +124,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 app.listen(PORT, () => {
+  startOpenClawDispatcher();
   const rowCount = (db.prepare("SELECT COUNT(*) n FROM tasks").get() as { n: number }).n;
   console.log(`
   ┌──────────────────────────────────────────────┐
@@ -129,7 +135,7 @@ app.listen(PORT, () => {
   console.log(`  Control Panel  →  http://localhost:${PORT}/app`);
   console.log(`  Live Dashboard →  http://localhost:${PORT}/dashboard`);
   console.log(`  Fast Capture   →  http://localhost:${PORT}/capture`);
-  console.log(`  Agent Center   →  http://localhost:${PORT}/agent`);
+  console.log(`  Agent Center   →  http://localhost:${PORT}/app/agent`);
   console.log(`  API base       →  http://localhost:${PORT}/api/v1`);
   console.log(`  Database       →  ${DB_PATH}`);
   console.log(`  Frontend       →  ${useReact ? "React (built)" : "Legacy HTML (run: cd frontend && npm run build)"}`);

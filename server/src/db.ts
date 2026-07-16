@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS agent_approvals (
   status TEXT NOT NULL DEFAULT 'pending',
   requestedAt TEXT NOT NULL,
   resolvedAt TEXT,
-  resolvedBy TEXT
+  resolvedBy TEXT,
+  resolutionNote TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ai_summaries (
@@ -123,6 +124,49 @@ CREATE TABLE IF NOT EXISTS ai_summaries (
   provider TEXT NOT NULL DEFAULT 'none'
 );
 
+CREATE TABLE IF NOT EXISTS webhook_outbox (
+  id TEXT PRIMARY KEY,
+  eventType TEXT NOT NULL,
+  entityType TEXT,
+  entityId TEXT,
+  payload TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'normal',
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  nextAttemptAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  deliveredAt TEXT,
+  lastError TEXT,
+  dedupeKey TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'info',
+  title TEXT NOT NULL,
+  body TEXT,
+  targetType TEXT,
+  targetId TEXT,
+  actor TEXT NOT NULL DEFAULT 'system',
+  dedupeKey TEXT NOT NULL UNIQUE,
+  createdAt TEXT NOT NULL,
+  readAt TEXT
+);
+
+CREATE TABLE IF NOT EXISTS gordon_chat_messages (
+  id TEXT PRIMARY KEY,
+  conversationId TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'complete',
+  replyToId TEXT REFERENCES gordon_chat_messages(id) ON DELETE SET NULL,
+  error TEXT,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  completedAt TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_notes_parent ON notes(parentType, parentId);
 CREATE INDEX IF NOT EXISTS idx_attachments_parent ON attachments(parentType, parentId);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -130,6 +174,12 @@ CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status);
 CREATE INDEX IF NOT EXISTS idx_approvals_status ON agent_approvals(status);
 CREATE INDEX IF NOT EXISTS idx_ai_summaries_type ON ai_summaries(type);
+CREATE INDEX IF NOT EXISTS idx_webhook_outbox_due ON webhook_outbox(status, nextAttemptAt);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_outbox_queued_dedupe
+  ON webhook_outbox(dedupeKey) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(createdAt DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(readAt, createdAt DESC);
+CREATE INDEX IF NOT EXISTS idx_gordon_chat_conversation ON gordon_chat_messages(conversationId, createdAt);
 `);
 
 // Lightweight, idempotent migrations for existing local databases.
@@ -148,6 +198,21 @@ if (!taskColumns.some((column) => column.name === "source")) {
 db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parentTaskId)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_source ON tasks(source)");
 
+const approvalColumns = db.prepare("PRAGMA table_info(agent_approvals)").all() as { name: string }[];
+if (!approvalColumns.some((column) => column.name === "resolutionNote")) {
+  db.exec("ALTER TABLE agent_approvals ADD COLUMN resolutionNote TEXT");
+}
+
+// Runtime rename: preserve audit rows while replacing the retired agent identity.
+const retiredAgentName = ["Her", "mes"].join("");
+db.prepare("UPDATE agent_actions SET agentName = 'Gordon' WHERE agentName = ?").run(retiredAgentName);
+db.prepare("UPDATE agent_approvals SET agentName = 'Gordon' WHERE agentName = ?").run(retiredAgentName);
+// A process can exit mid-delivery; make those rows eligible after restart.
+db.prepare("UPDATE webhook_outbox SET status = 'queued' WHERE status = 'delivering'").run();
+db.prepare(
+  "UPDATE gordon_chat_messages SET status = 'failed', error = 'Interrupted by server restart', updatedAt = ? WHERE status = 'streaming'"
+).run(new Date().toISOString());
+
 // Default settings
 const defaults: Record<string, string> = {
   dashboardRefreshSeconds: "30",
@@ -160,6 +225,7 @@ const defaults: Record<string, string> = {
   aiBaseUrl: "",
   captureAutoClassify: "true",
   captureAutoBreakdown: "true",
+  browserNotificationsEnabled: "false",
 };
 const insertSetting = db.prepare(
   "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)"

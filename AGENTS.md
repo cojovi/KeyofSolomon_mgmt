@@ -10,7 +10,7 @@ Treat the docs as the source of truth. If anything here conflicts with `docs/*`,
 
 Read these first when working in this repo:
 
-- `docs/HERMES_AGENT_BRIEF.md`
+- `docs/GORDON_OPENCLAW_AGENT_BRIEF.md`
 - `docs/README.md`
 - `docs/AGENT_API.md`
 - `docs/API.md`
@@ -53,7 +53,7 @@ Proceed directly for:
 
 ## Recommended agent workflow
 
-1. Read `docs/HERMES_AGENT_BRIEF.md` plus any relevant docs.
+1. Read `docs/GORDON_OPENCLAW_AGENT_BRIEF.md` plus any relevant docs.
 2. Inspect current state via `/api/v1/agent/context/today` or `/api/v1/agent/tasks/available`.
 3. Batch any independent reads before acting.
 4. Pick the smallest safe action that moves the work forward.

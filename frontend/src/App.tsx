@@ -21,8 +21,11 @@ export default function App() {
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Overview />} />
         <Route path="projects" element={<Projects />} />
+        <Route path="projects/:projectId" element={<Projects />} />
         <Route path="tasks" element={<Tasks />} />
+        <Route path="tasks/:taskId" element={<Tasks />} />
         <Route path="ideas" element={<Ideas />} />
+        <Route path="ideas/:ideaId" element={<Ideas />} />
         <Route path="activity" element={<Activity />} />
         <Route path="agent" element={<AgentCenter />} />
         <Route path="settings" element={<SettingsPage />} />

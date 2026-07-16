@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Plus, Archive, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "../lib/api";
 import type { Project, Note, Attachment } from "../lib/types";
@@ -231,9 +232,10 @@ function ProjectDetail({ id, onClose, onUpdate }: { id: string; onClose: () => v
 }
 
 export function Projects() {
+  const navigate = useNavigate();
+  const { projectId } = useParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [filters, setFilters] = useState({ q: "", status: "", priority: "" });
-  const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -287,7 +289,7 @@ export function Projects() {
               key={p.id}
               className={`card p-4 cursor-pointer hover:border-line2 transition-colors
                 ${p.status === "blocked" ? "border-nred/30 hover:border-nred/50" : ""}`}
-              onClick={() => setSelected(p.id)}
+              onClick={() => navigate(`/app/projects/${p.id}`)}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -327,9 +329,9 @@ export function Projects() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Project Details" wide>
-        {selected && (
-          <ProjectDetail id={selected} onClose={() => setSelected(null)} onUpdate={load} />
+      <Modal open={!!projectId} onClose={() => navigate("/app/projects")} title="Project Details" wide>
+        {projectId && (
+          <ProjectDetail id={projectId} onClose={() => navigate("/app/projects")} onUpdate={load} />
         )}
       </Modal>
     </div>

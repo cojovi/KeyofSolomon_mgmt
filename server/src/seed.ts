@@ -240,9 +240,9 @@ const insertAction = db.prepare(
   `INSERT INTO agent_actions (id, agentName, actionType, targetType, targetId, summary, details, createdAt)
    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 );
-insertAction.run(makeId("act"), "OpenClaw", "dashboard_request", null, null, "Requested dashboard context", null, t(-6));
-insertAction.run(makeId("act"), "OpenClaw", "add_note", "project", projects[1].id, "Added progress note to OpenClaw Agent API", "Verified context endpoint output shape", t(-5));
-insertAction.run(makeId("act"), "OpenClaw", "create", "task", tasks[8].id, "Created task 'Draft OpenClaw agent prompt'", "Derived from inbox triage idea", t(-40));
-insertAction.run(makeId("act"), "OpenClaw", "status_change", "task", tasks[6].id, "Task 'Order PETG filament restock': todo → waiting", "Order placed, awaiting shipment", t(-15));
+insertAction.run(makeId("act"), "Gordon", "dashboard_request", null, null, "Requested dashboard context", null, t(-6));
+insertAction.run(makeId("act"), "Gordon", "add_note", "project", projects[1].id, "Added progress note to OpenClaw Agent API", "Verified context endpoint output shape", t(-5));
+insertAction.run(makeId("act"), "Gordon", "create", "task", tasks[8].id, "Created task 'Draft OpenClaw agent prompt'", "Derived from inbox triage idea", t(-40));
+insertAction.run(makeId("act"), "Gordon", "status_change", "task", tasks[6].id, "Task 'Order PETG filament restock': todo → waiting", "Order placed, awaiting shipment", t(-15));
 
 console.log(`Seeded: ${projects.length} projects, ${tasks.length} tasks, ${ideas.length} ideas, ${notes.length} notes, 3 attachments, 4 agent actions.`);

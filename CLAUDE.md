@@ -61,4 +61,4 @@ If you are acting as the automation agent against this app's API (not editing it
 
 ## Documentation
 
-`docs/` is the source of truth and wins over any code comment when they conflict. Start with `docs/README.md`, `docs/HERMES_AGENT_BRIEF.md`, `docs/AGENT_API.md`, `docs/API.md`, `docs/DATA_MODEL.md`, and `docs/STATUS_RULES.md`. `CURSOR.md` is a longer companion guide covering the same ground with the design system and repository layout.
+`docs/` is the source of truth and wins over any code comment when they conflict. Start with `docs/README.md`, `docs/GORDON_OPENCLAW_AGENT_BRIEF.md`, `docs/AGENT_API.md`, `docs/API.md`, `docs/DATA_MODEL.md`, and `docs/STATUS_RULES.md`. `CURSOR.md` is a longer companion guide covering the same ground with the design system and repository layout.

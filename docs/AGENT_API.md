@@ -7,11 +7,16 @@ Key of Solomon is the user's personal command center for projects, tasks, and id
 ## Connection
 
 ```
-Base URL:  http://localhost:8787/api/v1
-Auth:      Authorization: Bearer <LOCAL_API_TOKEN>     (find it in the app's .env)
-Identity:  X-Agent-Name: <your-name>                   (e.g. "OpenClaw")
+Base URL:  https://<key-of-solomon-tailnet-host>/api/v1
+Auth:      Authorization: Bearer <GORDON_API_TOKEN>
+Identity:  X-Agent-Name: Gordon
 Content:   Content-Type: application/json
 ```
+
+`GORDON_API_TOKEN` is accepted only under `/api/v1/agent`; attempts to use it
+against settings, import/export, or standard CRUD return `403 FORBIDDEN`. The
+token itself binds the audit identity to Gordon, so a conflicting identity
+header or body cannot spoof another agent.
 
 Every response uses the envelope `{ "success": bool, "data": ..., "error": {code, message} | null }`. Always check `success` before assuming anything worked.
 
@@ -34,14 +39,14 @@ Key of Solomon's embedded AI and the external agent have separate ownership:
 | System | Owns | Must not do |
 |---|---|---|
 | Embedded AI | Fast Capture classification, optional initial subtask structure, stored summaries | Ongoing task management, status changes, execution |
-| Hermes / external agent | Execution, status changes, notes, research, deliberate plan extensions | Recreate an existing task or generate a second subtask plan |
+| Gordon / external agent | Execution, status changes, notes, research, deliberate plan extensions | Recreate an existing task or generate a second subtask plan |
 
 Tasks expose `source`; main tasks also expose derived `subtaskPlanSource`. Use
 those fields together with `subtaskCount` before creating work.
 
 ## What requires approval
 
-Actions in the **needs-approval** tier — submit a `POST /approvals` request before attempting them:
+Actions in the **needs-approval** tier — submit a `POST /agent/approvals` request before attempting them:
 
 - Marking a task `done` (when not explicitly instructed in the current session)
 - Archiving anything
@@ -68,12 +73,16 @@ Your morning briefing. Returns:
 {
   "generatedAt": "…",
   "dueToday": [Task], "overdue": [Task], "urgent": [Task],
-  "blocked": [Task], "inProgress": [Task],
+  "blocked": [Task], "waiting": [Task], "stale": [Task], "inProgress": [Task],
   "agentCandidates": [Task],
   "activeProjects": [Project],
-  "recentNotes": [Note]
+  "recentNotes": [Note],
+  "pendingApprovals": [AgentApproval]
 }
 ```
+
+Task entries include hierarchy fields and `lastRemindedAt`. `stale` means an
+open task whose `updatedAt` is at least 14 days old.
 
 ### `GET /agent/context/dashboard`
 
@@ -84,6 +93,12 @@ Full dashboard state (same shape as `GET /dashboard/state`). Calling it logs a `
 Open tasks (`todo` / `in_progress` / `waiting`), sorted: agent candidates first,
 then priority, then recency. Max 50. Results include `source`, `subtaskCount`, and
 `subtaskPlanSource`.
+
+### Agent-safe entity detail
+
+- `GET /agent/tasks/:id` — task hierarchy, notes, attachments, and `lastRemindedAt`
+- `GET /agent/projects/:id` — project, notes, and attachments
+- `GET /agent/ideas/:id` — idea, notes, and attachments
 
 ---
 
@@ -133,6 +148,22 @@ payload duplicate titles return `DUPLICATE_TASK` / `VALIDATION_ERROR`.
 - `reason` is **required**.
 - Side effects: an `agent_update` note is added to the task, a `status_change` action is logged.
 - A main task cannot be marked `done` until all non-archived subtasks are done.
+- Verified self-completion requires `completedByAgent: true` and a non-empty
+  `evidence` string; the evidence is stored as a progress note.
+- Completion not performed by the agent requires an approved `mark_complete`
+  approval and its `approvalId`. Archiving similarly requires an approved
+  `archive` approval ID.
+
+Verified self-completion example:
+
+```json
+{
+  "status": "done",
+  "reason": "Implemented and verified the requested change",
+  "completedByAgent": true,
+  "evidence": "Tests pass and the expected API response was observed"
+}
+```
 
 ### `POST /agent/tasks/:id/set-parent`
 
@@ -179,7 +210,9 @@ Required: `reason`. Optional overrides: `title`, `description`, `area`, `priorit
 
 Required: `reason`. Optional overrides: `title`, `shortDescription`, `category`, `priority`, `tags`, `dueDate`.
 
-**Note:** converting an idea to a project is in the **needs-approval** tier. Submit a `POST /approvals` request with `actionType: "convert_idea_to_project"` and wait for user approval before calling this endpoint.
+**Note:** converting an idea to a project is in the **needs-approval** tier.
+Submit `POST /agent/approvals` with `actionType: "convert_idea_to_project"`,
+wait for approval, and pass the approved `approvalId` to this endpoint.
 
 ### `POST /agent/actions/log`
 
@@ -190,19 +223,21 @@ For visibility into work done outside this API.
   "summary": "Refactored the seed script", "details": "Split into fixtures + loader." }
 ```
 
-Required: `summary`. `actionType` one of: `create`, `update`, `status_change`, `add_note`, `convert_idea`, `dashboard_request`, `error`.
+Required: `summary`. `actionType` one of: `create`, `update`, `status_change`,
+`add_note`, `convert_idea`, `dashboard_request`, `reminder`, `error`. Use
+`reminder` for owner notifications so the context API can enforce cooldowns
+without adding noisy task notes.
 
 ---
 
 ## Approval system *(Beta 2)*
 
-### `POST /approvals`
+### `POST /agent/approvals`
 
 Submit a request for user approval before a destructive action.
 
 ```json
 {
-  "agentName": "OpenClaw",
   "actionType": "convert_idea_to_project",
   "targetType": "idea",
   "targetId": "idea_abc123",
@@ -211,15 +246,29 @@ Submit a request for user approval before a destructive action.
 }
 ```
 
-Required: `agentName`, `actionType`, `reason`. Returns `{ approval }` with `status: "pending"`.
+Required: `actionType`, `reason`, and `payload`. Gordon's identity is supplied
+by the scoped token. Returns the approval with `status: "pending"`.
+
+Approval reads include a safe `target` snapshot with the referenced entity's
+type, ID, title, status, and current existence. When the owner resolves the
+request, `resolutionNote` may explain the decision. Treat that note as context;
+it does not authorize a different gated action.
 
 ### Listening for resolution
 
-Subscribe to `GET /api/v1/events` — you will receive an `approval_requested` event when approval is created (for the UI) and can poll `GET /approvals/:id` to check status. When `status` becomes `"approved"`, proceed with the action. When `"rejected"`, drop it and note why.
+OpenClaw receives approval resolution through the `/solomon` hook. Poll
+`GET /agent/approvals/:id` when needed. When status is `approved`, pass its ID
+to the gated endpoint. When rejected, drop the action and note why.
 
-### `GET /approvals/pending`
+### `GET /agent/approvals/pending`
 
 Returns array of all pending approvals. Useful to check if you have outstanding requests before submitting new ones.
+
+The embedded Agent Center chat is an owner-facing OpenClaw Gateway surface. It
+does not expand this scoped token: any task-system changes requested in chat must
+still use `/api/v1/agent/**`, preserve user-authored content, and pass the same
+approval gates. The Gordon token is intentionally rejected on the full-token
+`/api/v1/integrations/openclaw/chat/**` routes.
 
 ---
 
@@ -243,8 +292,9 @@ Returns array of all pending approvals. Useful to check if you have outstanding 
 2. POST /agent/tasks/:id/update-status       {status:"in_progress", reason:"…"}
 3. …do the actual work…
 4. POST /agent/tasks/:id/add-note            {body:"What I did", type:"progress"}
-5. If completing: POST /approvals            {actionType:"mark_done", reason:"…"} → wait for approval
-6. On approval: POST /agent/tasks/:id/update-status  {status:"done", reason:"Approved by user"}
+5a. If Gordon completed it: POST status with completedByAgent:true + evidence
+5b. Otherwise: POST /agent/approvals {actionType:"mark_complete", payload:{status:"done"}, reason:"…"}
+6. On approval: POST status with approvalId
 ```
 
 ### Capture something the user said
@@ -276,9 +326,9 @@ Returns array of all pending approvals. Useful to check if you have outstanding 
 ### Convert an idea with approval
 
 ```
-1. POST /approvals  {actionType:"convert_idea_to_project", targetId:"idea_xyz", reason:"…"}
-2. Poll GET /approvals/:id  (or wait for SSE event)
-3. If approved:  POST /agent/ideas/:id/convert-to-project  {reason:"Approved by user"}
+1. POST /agent/approvals  {actionType:"convert_idea_to_project", targetType:"idea", targetId:"idea_xyz", payload:{}, reason:"…"}
+2. Poll GET /agent/approvals/:id  (or wait for the OpenClaw hook)
+3. If approved: POST /agent/ideas/:id/convert-to-project {reason:"Approved by user", approvalId:"appr_…"}
 4. If rejected:  POST /agent/ideas/:id/add-note  {body:"User declined conversion — keeping as idea"}
 ```
 
@@ -287,9 +337,9 @@ Returns array of all pending approvals. Useful to check if you have outstanding 
 ## Quick smoke test
 
 ```bash
-TOKEN=$(grep LOCAL_API_TOKEN .env | cut -d= -f2)
+TOKEN=$(grep GORDON_API_TOKEN .env | cut -d= -f2)
 curl -s http://localhost:8787/api/v1/agent/context/today \
-  -H "Authorization: Bearer $TOKEN" -H "X-Agent-Name: OpenClaw" | head -c 400
+  -H "Authorization: Bearer $TOKEN" -H "X-Agent-Name: Gordon" | head -c 400
 ```
 
 If `success` is `true`, you're in.

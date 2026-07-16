@@ -14,6 +14,7 @@ import { insertTask } from "./tasks.js";
 import { insertIdea } from "./ideas.js";
 import { broadcast } from "../events.js";
 import { callAI, classifyCapture, generateSummary, getAIConfig, AIError } from "../ai.js";
+import { createNotification } from "../notifications.js";
 
 /* ============ NOTES ============ */
 
@@ -184,6 +185,7 @@ const SETTING_KEYS = [
   "aiBaseUrl",
   "captureAutoClassify",
   "captureAutoBreakdown",
+  "browserNotificationsEnabled",
 ];
 
 settingsRouter.get("/", (_req, res) => {
@@ -261,7 +263,9 @@ agentActionsRouter.get("/", (req, res) => {
 agentActionsRouter.post("/", (req, res) => {
   try {
     const b = req.body || {};
-    const agentName = requireString(b, "agentName") || "unknown-agent";
+    const agentName = (req as any).authScope === "gordon"
+      ? "Gordon"
+      : requireString(b, "agentName") || "unknown-agent";
     const summary = requireString(b, "summary");
     if (!summary) return fail(res, 400, "VALIDATION_ERROR", "summary is required");
     const actionType = oneOf(b.actionType, ACTION_TYPES) ?? "update";
@@ -362,67 +366,126 @@ const APPROVAL_ACTIONS = [
   "modify_description", "delete_note", "bulk_update",
 ] as const;
 
+function parseApproval(row: any) {
+  if (!row) return undefined;
+  const targetType = typeof row.targetType === "string" ? row.targetType : null;
+  const targetId = typeof row.targetId === "string" ? row.targetId : null;
+  const entity = targetType && targetId && ["project", "task", "idea", "note"].includes(targetType)
+    ? getEntity(targetType as "project" | "task" | "idea" | "note", targetId)
+    : undefined;
+  return {
+    ...row,
+    payload: typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload,
+    target: targetType && targetId ? {
+      type: targetType,
+      id: targetId,
+      title: entity?.title || entity?.body || `${targetType} ${targetId}`,
+      status: entity?.status || null,
+      exists: !!entity,
+    } : null,
+  };
+}
+
+export function getApproval(id: string) {
+  return parseApproval(db.prepare("SELECT * FROM agent_approvals WHERE id = ?").get(id));
+}
+
+export function getPendingApprovals() {
+  return (db.prepare(
+    "SELECT * FROM agent_approvals WHERE status = 'pending' ORDER BY requestedAt ASC"
+  ).all() as any[]).map(parseApproval);
+}
+
+export function createApprovalRequest(body: Record<string, any>, fallbackAgentName = "agent") {
+  const reason = requireString(body, "reason");
+  if (!reason || body.payload === undefined || body.payload === null) {
+    throw new ValidationError("reason and payload are required");
+  }
+  const approval = {
+    id: makeId("appr"),
+    agentName: body.agentName || fallbackAgentName,
+    actionType: body.actionType || "update",
+    targetType: body.targetType ?? null,
+    targetId: body.targetId ?? null,
+    payload: JSON.stringify(body.payload),
+    reason,
+    status: "pending",
+    requestedAt: now(),
+    resolvedAt: null,
+    resolvedBy: null,
+    resolutionNote: null,
+  };
+  db.prepare(
+    `INSERT INTO agent_approvals (id, agentName, actionType, targetType, targetId, payload, reason, status, requestedAt, resolvedAt, resolvedBy, resolutionNote)
+     VALUES (@id, @agentName, @actionType, @targetType, @targetId, @payload, @reason, @status, @requestedAt, @resolvedAt, @resolvedBy, @resolutionNote)`
+  ).run(approval);
+  const parsed = parseApproval(approval);
+  createNotification({
+    type: "approval_requested",
+    severity: "attention",
+    title: `${parsed.agentName} needs approval`,
+    body: parsed.reason,
+    targetType: parsed.targetType || "approval",
+    targetId: parsed.targetId || parsed.id,
+    actor: parsed.agentName,
+    dedupeKey: `approval_requested:${parsed.id}`,
+  });
+  return parsed;
+}
+
 approvalsRouter.get("/", (req, res) => {
   const { status } = req.query as Record<string, string>;
   let sql = "SELECT * FROM agent_approvals WHERE 1=1";
   const params: any[] = [];
   if (status) { sql += " AND status = ?"; params.push(status); }
   sql += " ORDER BY requestedAt DESC LIMIT 100";
-  ok(res, parseRows(db.prepare(sql).all(...params)));
+  ok(res, (db.prepare(sql).all(...params) as any[]).map(parseApproval));
 });
 
 approvalsRouter.get("/pending", (_req, res) => {
-  ok(res, parseRows(db.prepare(
-    "SELECT * FROM agent_approvals WHERE status = 'pending' ORDER BY requestedAt ASC"
-  ).all()));
+  ok(res, getPendingApprovals());
 });
 
 approvalsRouter.post("/", (req, res) => {
-  const b = req.body || {};
-  const reason = requireString(b, "reason");
-  const payload = b.payload;
-  if (!reason || !payload) return fail(res, 400, "VALIDATION_ERROR", "reason and payload are required");
-  const approval = {
-    id: makeId("appr"),
-    agentName: b.agentName || "agent",
-    actionType: b.actionType || "update",
-    targetType: b.targetType ?? null,
-    targetId: b.targetId ?? null,
-    payload: JSON.stringify(payload),
-    reason,
-    status: "pending",
-    requestedAt: now(),
-    resolvedAt: null,
-    resolvedBy: null,
-  };
-  db.prepare(
-    `INSERT INTO agent_approvals (id, agentName, actionType, targetType, targetId, payload, reason, status, requestedAt, resolvedAt, resolvedBy)
-     VALUES (@id, @agentName, @actionType, @targetType, @targetId, @payload, @reason, @status, @requestedAt, @resolvedAt, @resolvedBy)`
-  ).run(approval);
-  broadcast("data-changed", { entity: "approval", id: approval.id, op: "create" });
-  ok(res, { ...approval, payload: JSON.parse(approval.payload) }, 201);
+  try {
+    const approval = createApprovalRequest(req.body || {});
+    broadcast("approval_requested", { id: approval.id, approval });
+    broadcast("data-changed", { entity: "approval", id: approval.id, op: "create" });
+    ok(res, approval, 201);
+  } catch (e) {
+    if (e instanceof ValidationError) return fail(res, 400, "VALIDATION_ERROR", e.message);
+    throw e;
+  }
 });
 
 approvalsRouter.post("/:id/approve", (req, res) => {
   const row = db.prepare("SELECT * FROM agent_approvals WHERE id = ?").get(req.params.id) as any;
   if (!row) return fail(res, 404, "NOT_FOUND", "Approval not found");
   if (row.status !== "pending") return fail(res, 400, "ALREADY_RESOLVED", "Approval already resolved");
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 1000) : null;
+  const resolvedAt = now();
   db.prepare(
-    "UPDATE agent_approvals SET status = 'approved', resolvedAt = ?, resolvedBy = 'user' WHERE id = ?"
-  ).run(now(), req.params.id);
+    "UPDATE agent_approvals SET status = 'approved', resolvedAt = ?, resolvedBy = 'user', resolutionNote = ? WHERE id = ?"
+  ).run(resolvedAt, note, req.params.id);
+  const approval = getApproval(req.params.id);
+  broadcast("approval_resolved", { id: req.params.id, status: "approved", approval });
   broadcast("data-changed", { entity: "approval", id: req.params.id, op: "approved" });
-  ok(res, { ...row, status: "approved", payload: JSON.parse(row.payload) });
+  ok(res, approval);
 });
 
 approvalsRouter.post("/:id/reject", (req, res) => {
   const row = db.prepare("SELECT * FROM agent_approvals WHERE id = ?").get(req.params.id) as any;
   if (!row) return fail(res, 404, "NOT_FOUND", "Approval not found");
   if (row.status !== "pending") return fail(res, 400, "ALREADY_RESOLVED", "Approval already resolved");
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 1000) : null;
+  const resolvedAt = now();
   db.prepare(
-    "UPDATE agent_approvals SET status = 'rejected', resolvedAt = ?, resolvedBy = 'user' WHERE id = ?"
-  ).run(now(), req.params.id);
+    "UPDATE agent_approvals SET status = 'rejected', resolvedAt = ?, resolvedBy = 'user', resolutionNote = ? WHERE id = ?"
+  ).run(resolvedAt, note, req.params.id);
+  const approval = getApproval(req.params.id);
+  broadcast("approval_resolved", { id: req.params.id, status: "rejected", approval });
   broadcast("data-changed", { entity: "approval", id: req.params.id, op: "rejected" });
-  ok(res, { ...row, status: "rejected", payload: JSON.parse(row.payload) });
+  ok(res, approval);
 });
 
 /* ============ AI SUMMARIES ============ */

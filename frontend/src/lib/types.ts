@@ -100,6 +100,41 @@ export interface AgentAction {
   createdAt: string;
 }
 
+export interface OpenClawIntegrationStatus {
+  enabled: boolean;
+  configured: boolean;
+  destination: string | null;
+  queue: {
+    queued: number;
+    delivering: number;
+    delivered: number;
+    failed: number;
+  };
+  latest: null | {
+    id: string;
+    eventType: string;
+    entityType?: string;
+    entityId?: string;
+    priority: string;
+    status: "queued" | "delivering" | "delivered" | "failed";
+    attempts: number;
+    createdAt: string;
+    deliveredAt?: string;
+    lastError?: string;
+  };
+  chat: {
+    enabled: boolean;
+    configured: boolean;
+    destination: string | null;
+    busy: boolean;
+    latest: null | {
+      status: "complete" | "streaming" | "failed";
+      updatedAt: string;
+      error?: string;
+    };
+  };
+}
+
 export interface AgentApproval {
   id: string;
   agentName: string;
@@ -112,6 +147,41 @@ export interface AgentApproval {
   requestedAt: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  resolutionNote?: string;
+  target?: null | {
+    type: string;
+    id: string;
+    title: string;
+    status?: string;
+    exists: boolean;
+  };
+}
+
+export interface GordonChatMessage {
+  id: string;
+  conversationId: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "complete" | "streaming" | "failed";
+  replyToId?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  severity: "info" | "success" | "attention" | "error";
+  title: string;
+  body?: string;
+  targetType?: string;
+  targetId?: string;
+  actor: string;
+  dedupeKey: string;
+  createdAt: string;
+  readAt?: string;
 }
 
 export interface AISummary {
@@ -178,6 +248,7 @@ export interface Settings {
   aiBaseUrl: string;
   captureAutoClassify: string;
   captureAutoBreakdown: string;
+  browserNotificationsEnabled: string;
 }
 
 export interface APIResponse<T> {

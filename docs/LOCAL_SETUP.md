@@ -54,9 +54,40 @@ When you're done iterating, rebuild: `npm run build:frontend`. The server will p
 |---|---|---|
 | `PORT` | `8787` | App + API port |
 | `LOCAL_API_TOKEN` | `neondeck-local-token-change-me` | Bearer token for all API calls. **Change it.** |
+| `GORDON_API_TOKEN` | empty | Separate long random token accepted only under `/api/v1/agent` |
+| `OPENCLAW_WEBHOOK_ENABLED` | `false` | Enables persistent outbound Gordon wake events |
+| `OPENCLAW_SOLOMON_WEBHOOK_URL` | empty | Complete secret OpenClaw `/solomon` tailnet URL |
+| `OPENCLAW_HOOK_TOKEN` | empty | Dedicated OpenClaw hook bearer token |
+| `OPENCLAW_GATEWAY_CHAT_ENABLED` | `false` | Enables the private server-side Gordon chat proxy |
+| `OPENCLAW_GATEWAY_BASE_URL` | empty | Tailnet-only OpenClaw Gateway base URL, without credentials |
+| `OPENCLAW_GATEWAY_TOKEN` | empty | Full owner/operator Gateway bearer token; server-only |
 | `DATABASE_PATH` | `./data/neondeck.db` | SQLite file location (auto-created, WAL mode) |
 
 AI provider credentials are stored in the **database settings**, not `.env` — configure them in Settings (`/app/settings`) after starting the server.
+
+## Gordon on another Tailscale device
+
+Keep Key of Solomon running locally and expose port 8787 over tailnet-only HTTPS:
+
+```bash
+tailscale serve --bg 8787
+tailscale serve status
+```
+
+Give Gordon the resulting HTTPS base plus `/api/v1` and only the scoped
+`GORDON_API_TOKEN`. Do not give the remote runtime `LOCAL_API_TOKEN`. Complete
+OpenClaw configuration and cron instructions live in `integrations/openclaw/`.
+
+For embedded Agent Center chat, separately enable OpenClaw's Chat Completions
+endpoint on the Mac Mini and add the three `OPENCLAW_GATEWAY_*` values above to
+Key of Solomon's ignored `.env`. The Gateway credential is more privileged than
+the scoped Gordon API token and the dedicated hook token; never reuse or expose
+it to browser code. Keep the Gateway private to Tailscale.
+
+Browser notifications are disabled by default. Enable them from Settings; the
+browser permission prompt is requested only after clicking the explicit enable
+control. This iteration supports notifications while a Key of Solomon tab is
+open, not background push after the application is fully closed.
 
 ## Database
 
@@ -89,3 +120,5 @@ Or open the URL and press `⌃⌘F` / `F11`.
 | `disk I/O error` | SQLite WAL fallback handles this; if it persists, set `DATABASE_PATH` to a local disk |
 | Fonts look plain | Google Fonts requires internet on first load; cached afterward |
 | AI summaries fail | Check Settings → AI Provider — key and model must be set |
+| Gordon chat is disabled | Enable the Gateway chat endpoint, set all `OPENCLAW_GATEWAY_*` values, and restart Key of Solomon |
+| Browser notification does not appear | Enable it in Settings, allow browser permission, and hide the Key of Solomon tab while testing |

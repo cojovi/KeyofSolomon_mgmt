@@ -1,6 +1,8 @@
 # Key of Solomon · Beta 2
 
-Local-first task / project / idea command center with a live animated neon dashboard and an agent-safe API.
+Local-first task / project / idea command center with a navigable neon dashboard,
+an agent-safe API, persistent notifications, informed approvals, and streaming
+chat with Gordon through a private OpenClaw Gateway.
 
 ## Quick start
 
@@ -28,7 +30,7 @@ Then open:
 | API base | http://localhost:8787/api/v1 |
 
 Full documentation lives in [`/docs`](./docs/README.md):
-[Hermes brief](./docs/HERMES_AGENT_BRIEF.md) · [Setup](./docs/LOCAL_SETUP.md) · [Data model](./docs/DATA_MODEL.md) · [API](./docs/API.md) · [Agent API](./docs/AGENT_API.md) · [Statuses](./docs/STATUS_RULES.md) · [Dashboard](./docs/DASHBOARD.md) · [Webhooks](./docs/WEBHOOKS.md) · [Examples](./docs/EXAMPLES.md)
+[Gordon / OpenClaw brief](./docs/GORDON_OPENCLAW_AGENT_BRIEF.md) · [Setup](./docs/LOCAL_SETUP.md) · [Data model](./docs/DATA_MODEL.md) · [API](./docs/API.md) · [Agent API](./docs/AGENT_API.md) · [Statuses](./docs/STATUS_RULES.md) · [Dashboard](./docs/DASHBOARD.md) · [Webhooks](./docs/WEBHOOKS.md) · [Examples](./docs/EXAMPLES.md)
 
 ## Project structure
 

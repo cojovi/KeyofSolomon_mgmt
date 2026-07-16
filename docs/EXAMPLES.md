@@ -139,7 +139,7 @@ curl -s -X POST $BASE/approvals/$APPR/reject -H "$AUTH"
 ## Agent examples (X-Agent-Name header)
 
 ```bash
-AG="X-Agent-Name: OpenClaw"
+AG="X-Agent-Name: Gordon"
 ```
 
 ### Morning briefing
@@ -209,26 +209,35 @@ curl -s -X POST $BASE/agent/tasks/$TASK/add-note -H "$AUTH" -H "$CT" -H "$AG" \
   -d '{"body":"Key rotated and verified, watching logs for an hour.","type":"progress"}'
 ```
 
+### Gordon completes work it performed
+
+```bash
+curl -s -X POST $BASE/agent/tasks/$TASK/update-status -H "$AUTH" -H "$CT" -H "$AG" -d '{
+  "status":"done",
+  "reason":"Implemented and verified the requested result",
+  "completedByAgent":true,
+  "evidence":"Automated tests pass and the expected behavior was observed"
+}'
+```
+
 ### Agent converts idea to project (with approval flow)
 
 ```bash
 # Step 1 — request approval
-curl -s -X POST $BASE/approvals -H "$AUTH" -H "$CT" -H "$AG" -d '{
-  "agentName": "OpenClaw",
+APPR=$(curl -s -X POST $BASE/agent/approvals -H "$AUTH" -H "$CT" -H "$AG" -d '{
   "actionType": "convert_idea_to_project",
   "targetType": "idea",
   "targetId": "'$IDEA'",
   "payload": {"priority":"high"},
   "reason": "User said this idea is ready to become a full project."
-}'
-# → {id: "appr_…", status: "pending"}
+}' | jq -r '.data.id')
 
 # Step 2 — poll until resolved
-curl -s $BASE/approvals/$APPR -H "$AUTH" | jq '.data.status'
+curl -s $BASE/agent/approvals/$APPR -H "$AUTH" -H "$AG" | jq '.data.status'
 
 # Step 3 — if "approved", convert
 curl -s -X POST $BASE/agent/ideas/$IDEA/convert-to-project -H "$AUTH" -H "$CT" -H "$AG" \
-  -d '{"reason":"Approved by user via Agent Center","priority":"high"}'
+  -d '{"reason":"Approved by user via Agent Center","priority":"high","approvalId":"'$APPR'"}'
 ```
 
 ### Log an agent action explicitly
@@ -249,7 +258,7 @@ curl -N "$BASE/events?token=$TOKEN"
 # event: data-changed
 # data: {"entity":"task","id":"task_…","op":"update","at":"…"}
 # event: approval_requested
-# data: {"id":"appr_…","agentName":"OpenClaw","actionType":"mark_done"}
+# data: {"id":"appr_…","agentName":"Gordon","actionType":"mark_complete"}
 ```
 
 ### Webhook — push from an external tool
@@ -259,5 +268,5 @@ curl -s -X POST $BASE/webhooks/task -H "$AUTH" -H "$CT" \
   -d '{"title":"Call insurance company","priority":"high","source":"ios-shortcut"}'
 
 curl -s -X POST $BASE/webhooks/agent-update -H "$AUTH" -H "$CT" \
-  -d '{"agentName":"OpenClaw","summary":"Daily review complete","details":"3 tasks updated."}'
+  -d '{"agentName":"Gordon","summary":"Daily review complete","details":"3 tasks updated."}'
 ```

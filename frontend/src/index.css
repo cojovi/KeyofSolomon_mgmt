@@ -57,6 +57,15 @@
   .zone-dot {
     @apply w-1.5 h-1.5 rounded-full animate-pulse-slow;
   }
+  .dashboard-item-title {
+    font-size: clamp(15px, 0.78vw, 16px);
+  }
+  .dashboard-meta {
+    font-size: clamp(12px, 0.64vw, 13px);
+  }
+  .dashboard-grid {
+    grid-template-columns: clamp(300px, 17vw, 340px) minmax(600px, 1fr) clamp(330px, 19vw, 380px);
+  }
   .panel-header {
     @apply flex items-center justify-between gap-4 mb-4;
   }
@@ -75,6 +84,10 @@
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
     animation: shimmer 2.8s infinite;
   }
+}
+
+@media (max-width: 1320px) {
+  .dashboard-grid { grid-template-columns: 290px minmax(560px, 1fr) 320px; }
 }
 
 /* Reduced motion */

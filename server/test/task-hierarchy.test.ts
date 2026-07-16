@@ -184,7 +184,7 @@ test("agent ownership rules prevent duplicate work and unplanned re-decompositio
   const base = `http://127.0.0.1:${address.port}`;
   const post = (path: string, body: unknown) => fetch(`${base}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Agent-Name": "Hermes-Test" },
+    headers: { "Content-Type": "application/json", "X-Agent-Name": "Gordon-Test" },
     body: JSON.stringify(body),
   });
 

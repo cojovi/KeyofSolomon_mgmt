@@ -132,7 +132,7 @@ Approval requests that agents must get resolved before taking destructive action
 AgentApproval {
   id: string                  // "appr_…"
   agentName: string
-  actionType: string          // e.g. "mark_done", "archive", "convert_idea_to_project"
+  actionType: string          // e.g. "mark_complete", "archive", "convert_idea_to_project"
   targetType?: string
   targetId?: string
   payload: object             // the full action payload, stored as JSON
@@ -141,8 +141,53 @@ AgentApproval {
   requestedAt: string
   resolvedAt?: string
   resolvedBy?: string         // "user" or whoever resolved it
+  resolutionNote?: string     // optional user feedback for Gordon
 }
 ```
+
+Approval API responses also include a derived target snapshot with entity type,
+ID, title, status, and existence. The snapshot is not a competing source of
+truth; the entity is fetched again before Gordon acts.
+
+## Gordon Chat Message
+
+```ts
+GordonChatMessage {
+  id: string
+  conversationId: "gordon-main"
+  role: "user" | "assistant"
+  content: string
+  status: "complete" | "streaming" | "failed"
+  replyToId?: string
+  error?: string               // redacted transport error
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+```
+
+Chat history is stored in SQLite for UI continuity. It is not a task store and
+does not replace OpenClaw's agent session.
+
+## Notification
+
+```ts
+Notification {
+  id: string
+  type: string
+  severity: "info" | "success" | "attention" | "error"
+  title: string
+  body?: string
+  targetType?: string
+  targetId?: string
+  actor: string
+  dedupeKey: string             // unique transition identity
+  createdAt: string
+  readAt?: string
+}
+```
+
+Notifications are never hard-deleted. Reading them sets `readAt`.
 
 ## AI Summary *(Beta 2)*
 
@@ -168,9 +213,17 @@ Only the most recent summary per type is returned by default from `GET /ai/summa
 | `animationSpeed` | `1` | Animation multiplier (0.5 = slower, 2 = faster) |
 | `reducedMotion` | `false` | `true` disables all animation |
 | `defaultDashboardMode` | `full` | Reserved |
+| `browserNotificationsEnabled` | `false` | Allows browser alerts while an open tab is hidden and permission is granted |
 | `aiProvider` | `none` | `anthropic` \| `openai` \| `openrouter` \| `ollama` \| `none` |
 | `aiApiKey` | `""` | API key for the selected provider (stored locally, never transmitted) |
 | `aiModel` | `""` | Model name (defaults per provider if blank) |
 | `aiBaseUrl` | `""` | Base URL for Ollama (default: `http://localhost:11434`) |
 | `captureAutoClassify` | `true` | `true` = use AI on `/capture` requests |
 | `captureAutoBreakdown` | `true` | `true` = embedded AI may create the initial subtask plan during Fast Capture |
+
+## Webhook Outbox
+
+`webhook_outbox` durably records metadata-only OpenClaw deliveries: event/entity
+identity, redacted payload, priority, queued/delivering/delivered/failed status,
+attempt count, next attempt, timestamps, last safe error, and a queued-event
+deduplication key. Rows are audit/delivery state and are never a second task store.

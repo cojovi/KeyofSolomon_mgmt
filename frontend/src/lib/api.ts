@@ -66,6 +66,45 @@ export const api = {
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 };
 
+export async function apiStream(
+  path: string,
+  body: unknown,
+  onEvent: (event: { type: string; data: any }) => void,
+): Promise<void> {
+  await initConfig();
+  const res = await fetch(`${_apiBase}${path}`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok || !res.body) {
+    let json: any = null;
+    try { json = await res.json(); } catch {}
+    throw new APIError(res.status, json?.error?.code || "STREAM_ERROR", json?.error?.message || "Stream request failed");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventType = "message";
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventType = line.slice(6).trim() || "message";
+      } else if (line.startsWith("data:")) {
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try { onEvent({ type: eventType, data: JSON.parse(raw) }); } catch {}
+        eventType = "message";
+      }
+    }
+    if (done) break;
+  }
+}
+
 export interface SSEEvent {
   type: string;
   data?: unknown;
@@ -94,6 +133,7 @@ export function connectSSE(
     const EVENT_TYPES = [
       "data-changed", "project_updated", "task_updated",
       "idea_updated", "agent_action", "approval_requested", "ping",
+      "approval_resolved", "notification_created",
     ];
     for (const evType of EVENT_TYPES) {
       es.addEventListener(evType, (e: MessageEvent) => {

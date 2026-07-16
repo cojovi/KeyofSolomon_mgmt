@@ -13,7 +13,9 @@ import {
   ok, fail, now, parseRows, requireString, oneOf,
   ValidationError, TASK_STATUSES, ACTION_TYPES,
 } from "../helpers.js";
-import { createNote, getEntity, logAgentAction } from "../store.js";
+import {
+  attachmentsFor, createNote, getEntity, logAgentAction, notesFor,
+} from "../store.js";
 import {
   findOpenTaskDuplicate, insertTask, normalizeTaskTitle,
   patchTask, taskWithHierarchy,
@@ -21,15 +23,38 @@ import {
 import { insertIdea, convertIdea } from "./ideas.js";
 import { buildDashboardState } from "./dashboard.js";
 import { broadcast } from "../events.js";
+import {
+  createApprovalRequest, getApproval, getPendingApprovals,
+} from "./misc.js";
+import { createNotification } from "../notifications.js";
 
 export const agentRouter = Router();
 
 function agentName(req: any): string {
+  if (req.authScope === "gordon") return "Gordon";
   return (
     (typeof req.headers["x-agent-name"] === "string" && req.headers["x-agent-name"]) ||
     (typeof req.body?.agentName === "string" && req.body.agentName) ||
     "agent"
   );
+}
+
+function taskContextSql(where: string) {
+  return `SELECT t.*, p.title AS parentTaskTitle,
+    (SELECT COUNT(*) FROM tasks c WHERE c.parentTaskId = t.id AND c.status != 'archived') AS subtaskCount,
+    (SELECT COUNT(*) FROM tasks c WHERE c.parentTaskId = t.id AND c.status = 'done') AS completedSubtaskCount,
+    (SELECT CASE WHEN COUNT(*) = 0 THEN NULL WHEN MIN(c.source) = MAX(c.source) THEN MIN(c.source) ELSE 'mixed' END
+       FROM tasks c WHERE c.parentTaskId = t.id AND c.status != 'archived') AS subtaskPlanSource,
+    (SELECT MAX(a.createdAt) FROM agent_actions a
+       WHERE a.actionType = 'reminder' AND a.targetType = 'task' AND a.targetId = t.id) AS lastRemindedAt
+    FROM tasks t LEFT JOIN tasks p ON p.id = t.parentTaskId WHERE ${where}`;
+}
+
+function approvedFor(id: unknown, actions: string[], targetType: string, targetId: string) {
+  if (typeof id !== "string" || !id) return false;
+  const approval = getApproval(id);
+  return approval?.status === "approved" && actions.includes(approval.actionType)
+    && approval.targetType === targetType && approval.targetId === targetId;
 }
 
 function conflict(res: any, code: string, message: string, data: unknown) {
@@ -39,7 +64,9 @@ function conflict(res: any, code: string, message: string, data: unknown) {
 /* ---------- read context ---------- */
 
 agentRouter.get("/context/today", (req, res) => {
-  const all = (sql: string, ...params: any[]) => parseRows(db.prepare(sql).all(...params));
+  const all = (where: string, order = "t.updatedAt DESC", ...params: any[]) => parseRows(
+    db.prepare(`${taskContextSql(where)} ORDER BY ${order}`).all(...params)
+  );
   const nowIso = now();
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
@@ -47,19 +74,25 @@ agentRouter.get("/context/today", (req, res) => {
   const data = {
     generatedAt: nowIso,
     dueToday: all(
-      "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND dueDate <= ? AND dueDate >= ? ORDER BY dueDate ASC",
-      endOfToday.toISOString(), nowIso.slice(0, 10)
+      "t.status NOT IN ('done','archived') AND t.dueDate IS NOT NULL AND t.dueDate <= ? AND t.dueDate >= ?",
+      "t.dueDate ASC", endOfToday.toISOString(), nowIso.slice(0, 10)
     ),
     overdue: all(
-      "SELECT * FROM tasks WHERE status NOT IN ('done','archived') AND dueDate IS NOT NULL AND dueDate < ? ORDER BY dueDate ASC",
-      nowIso
+      "t.status NOT IN ('done','archived') AND t.dueDate IS NOT NULL AND t.dueDate < ?",
+      "t.dueDate ASC", nowIso
     ),
-    urgent: all("SELECT * FROM tasks WHERE priority = 'urgent' AND status NOT IN ('done','archived')"),
-    blocked: all("SELECT * FROM tasks WHERE status = 'blocked'"),
-    inProgress: all("SELECT * FROM tasks WHERE status = 'in_progress'"),
-    agentCandidates: all("SELECT * FROM tasks WHERE agentCandidate = 1 AND status IN ('todo','in_progress','waiting')"),
-    activeProjects: all("SELECT * FROM projects WHERE status = 'active'"),
-    recentNotes: all("SELECT * FROM notes ORDER BY createdAt DESC LIMIT 10"),
+    urgent: all("t.priority = 'urgent' AND t.status NOT IN ('done','archived')"),
+    blocked: all("t.status = 'blocked'"),
+    waiting: all("t.status = 'waiting'"),
+    stale: all(
+      "t.status NOT IN ('done','archived') AND t.updatedAt < ?",
+      "t.updatedAt ASC", new Date(Date.now() - 14 * 86400_000).toISOString()
+    ),
+    inProgress: all("t.status = 'in_progress'"),
+    agentCandidates: all("t.agentCandidate = 1 AND t.status IN ('todo','in_progress','waiting')"),
+    activeProjects: parseRows(db.prepare("SELECT * FROM projects WHERE status = 'active'").all()),
+    recentNotes: parseRows(db.prepare("SELECT * FROM notes ORDER BY createdAt DESC LIMIT 10").all()),
+    pendingApprovals: getPendingApprovals(),
   };
   ok(res, data);
 });
@@ -93,6 +126,40 @@ agentRouter.get("/tasks/available", (_req, res) => {
     ).all()
   );
   ok(res, rows);
+});
+
+agentRouter.get("/tasks/:id", (req, res) => {
+  const task = taskWithHierarchy(req.params.id);
+  if (!task) return fail(res, 404, "NOT_FOUND", "Task not found");
+  const reminder = db.prepare(
+    "SELECT MAX(createdAt) AS lastRemindedAt FROM agent_actions WHERE actionType = 'reminder' AND targetType = 'task' AND targetId = ?"
+  ).get(req.params.id) as any;
+  ok(res, {
+    ...task,
+    lastRemindedAt: reminder?.lastRemindedAt ?? null,
+    notes: notesFor("task", req.params.id),
+    attachments: attachmentsFor("task", req.params.id),
+  });
+});
+
+agentRouter.get("/projects/:id", (req, res) => {
+  const project = getEntity("project", req.params.id);
+  if (!project) return fail(res, 404, "NOT_FOUND", "Project not found");
+  ok(res, {
+    ...project,
+    notes: notesFor("project", req.params.id),
+    attachments: attachmentsFor("project", req.params.id),
+  });
+});
+
+agentRouter.get("/ideas/:id", (req, res) => {
+  const idea = getEntity("idea", req.params.id);
+  if (!idea) return fail(res, 404, "NOT_FOUND", "Idea not found");
+  ok(res, {
+    ...idea,
+    notes: notesFor("idea", req.params.id),
+    attachments: attachmentsFor("idea", req.params.id),
+  });
 });
 
 agentRouter.post("/tasks/create", (req, res) => {
@@ -225,12 +292,50 @@ agentRouter.post("/tasks/:id/update-status", (req, res) => {
     if (!reason)
       return fail(res, 400, "VALIDATION_ERROR", "Agents must provide a 'reason' when changing status");
 
+    if (status === "done") {
+      const selfCompleted = req.body?.completedByAgent === true && !!requireString(req.body || {}, "evidence");
+      const approved = approvedFor(req.body?.approvalId, ["mark_complete", "mark_done"], "task", req.params.id);
+      if (!selfCompleted && !approved) {
+        return fail(
+          res, 403, "APPROVAL_REQUIRED",
+          "Completion requires completedByAgent=true with evidence, or an approved mark_complete approvalId."
+        );
+      }
+    }
+    if (status === "archived" && !approvedFor(req.body?.approvalId, ["archive"], "task", req.params.id)) {
+      return fail(res, 403, "APPROVAL_REQUIRED", "Archiving requires an approved archive approvalId.");
+    }
+
     const updated = patchTask(req.params.id, { status });
     createNote({
       parentType: "task", parentId: req.params.id,
       body: `Status changed ${task.status} → ${status}. Reason: ${reason}`,
       type: "agent_update", createdBy: "agent",
     });
+    if (status === "done" && req.body?.completedByAgent === true) {
+      const evidence = requireString(req.body || {}, "evidence") || "Verified by Gordon";
+      createNote({
+        parentType: "task", parentId: req.params.id,
+        body: `Completion evidence: ${evidence}`,
+        type: "progress", createdBy: "agent",
+      });
+      createNotification({
+        type: "agent_task_completed", severity: "success",
+        title: `Gordon completed: ${task.title}`,
+        body: evidence,
+        targetType: "task", targetId: req.params.id, actor: "Gordon",
+        dedupeKey: `agent_task_completed:${req.params.id}:${updated.completedAt || updated.updatedAt}`,
+      });
+    }
+    if (status === "blocked") {
+      createNotification({
+        type: "agent_task_blocked", severity: "attention",
+        title: `Gordon blocked: ${task.title}`,
+        body: reason,
+        targetType: "task", targetId: req.params.id, actor: "Gordon",
+        dedupeKey: `agent_task_blocked:${req.params.id}:${updated.updatedAt}`,
+      });
+    }
     const action = logAgentAction({
       agentName: agentName(req),
       actionType: "status_change",
@@ -360,6 +465,9 @@ agentRouter.post("/ideas/:id/convert-to-project", (req, res) => {
     const reason = requireString(req.body || {}, "reason");
     if (!reason)
       return fail(res, 400, "VALIDATION_ERROR", "Agents must provide a 'reason' when converting an idea");
+    if (!approvedFor(req.body?.approvalId, ["convert_idea_to_project"], "idea", req.params.id)) {
+      return fail(res, 403, "APPROVAL_REQUIRED", "Conversion requires an approved convert_idea_to_project approvalId.");
+    }
     const result = convertIdea(req.params.id, "project", req.body || {}, "agent");
     const action = logAgentAction({
       agentName: agentName(req),
@@ -371,6 +479,33 @@ agentRouter.post("/ideas/:id/convert-to-project", (req, res) => {
     });
     broadcast("data-changed", { entity: "idea", id: req.params.id, op: "convert", by: "agent" });
     ok(res, { project: result.converted, idea: result.idea, action }, 201);
+  } catch (e) {
+    if (e instanceof ValidationError) return fail(res, 400, "VALIDATION_ERROR", e.message);
+    throw e;
+  }
+});
+
+/* ---------- approval workflow ---------- */
+
+agentRouter.get("/approvals/pending", (_req, res) => {
+  ok(res, getPendingApprovals());
+});
+
+agentRouter.get("/approvals/:id", (req, res) => {
+  const approval = getApproval(req.params.id);
+  if (!approval) return fail(res, 404, "NOT_FOUND", "Approval not found");
+  ok(res, approval);
+});
+
+agentRouter.post("/approvals", (req, res) => {
+  try {
+    const approval = createApprovalRequest(
+      { ...(req.body || {}), agentName: agentName(req) },
+      agentName(req),
+    );
+    broadcast("approval_requested", { id: approval.id, approval });
+    broadcast("data-changed", { entity: "approval", id: approval.id, op: "create", by: "agent" });
+    ok(res, approval, 201);
   } catch (e) {
     if (e instanceof ValidationError) return fail(res, 400, "VALIDATION_ERROR", e.message);
     throw e;

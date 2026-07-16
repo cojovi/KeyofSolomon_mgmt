@@ -11,6 +11,8 @@ import type {
   AISummary, Settings, UpcomingDeadline, TickerItem,
 } from "../lib/types";
 import { relativeTime } from "../lib/utils";
+import { entityPath } from "../lib/entityLinks";
+import { NotificationCenter } from "../components/ui/Toast";
 
 // ─── tokens ─────────────────────────────────────────────────────────────────
 
@@ -116,11 +118,12 @@ function timeStr() {
 
 // ─── small building blocks ────────────────────────────────────────────────────
 
-function Kpi({ label, value, color, icon: Icon, alert }: {
-  label: string; value: number; color: string; icon: React.ElementType; alert?: boolean;
+function Kpi({ label, value, color, icon: Icon, alert, to }: {
+  label: string; value: number; color: string; icon: React.ElementType; alert?: boolean; to: string;
 }) {
   return (
-    <div className="relative px-4 py-2 rounded-xl bg-panel border border-line overflow-hidden min-w-[112px]">
+    <Link to={to} aria-label={`View ${label}`}
+      className="relative px-4 py-2 rounded-xl bg-panel border border-line overflow-hidden min-w-[112px] hover:border-line2 focus:outline-none focus:ring-2 focus:ring-cyan/40 transition-colors">
       <div className="flex items-center gap-1.5 mb-0.5">
         <Icon size={14} style={{ color }} />
         <span className="font-mono text-[11px] tracking-[1.5px] text-dim uppercase">{label}</span>
@@ -135,7 +138,7 @@ function Kpi({ label, value, color, icon: Icon, alert }: {
       {alert && value > 0 && (
         <div className="absolute inset-0 pointer-events-none animate-pulse-slow" style={{ boxShadow: `inset 0 0 26px ${color}22` }} />
       )}
-    </div>
+    </Link>
   );
 }
 
@@ -177,24 +180,26 @@ function ProjectRow({ p }: { p: Project }) {
   const pct = Math.min(100, Math.max(0, p.progressPercent ?? 0));
   const due = dueLabel(p.dueDate);
   return (
-    <div className="rounded-xl bg-panel2 border border-line p-3 mb-2.5" style={{ borderLeft: `3px solid ${accent}` }}>
+    <Link to={`/app/projects/${p.id}`} title={p.title}
+      className="block rounded-xl bg-panel2 border border-line p-3 mb-2.5 hover:border-line2 focus:outline-none focus:ring-2 focus:ring-cyan/40 transition-colors"
+      style={{ borderLeft: `3px solid ${accent}` }}>
       <div className="flex items-center gap-2.5">
         <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: `${accent}1f`, border: `1px solid ${accent}55` }}>
           <Icon size={18} style={{ color: accent }} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display font-semibold text-[15px] text-white truncate">{p.title}</div>
-          <div className="text-[12px] text-dim truncate">{p.shortDescription || p.category || "—"}</div>
+          <div className="font-display font-semibold dashboard-item-title text-white truncate">{p.title}</div>
+          <div className="dashboard-meta text-dim truncate">{p.shortDescription || p.category || "—"}</div>
         </div>
         <span className="badge text-[10px]" style={{ color: accent, borderColor: `${accent}66` }}>{p.status}</span>
       </div>
       <div className="progress-bar h-2 mt-2.5"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
-      <div className="flex items-center justify-between mt-1.5 font-mono text-[12px]">
+      <div className="flex items-center justify-between mt-1.5 font-mono dashboard-meta">
         <span className="text-dim">{pct}%</span>
         {due && <span className={due.cls}>⏱ {due.text}</span>}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -204,34 +209,35 @@ function TaskItem({ t, done }: { t: Task; done?: boolean }) {
   const pc = PRIORITY_COLOR[t.priority ?? ""] ?? "transparent";
   const due = done ? null : dueLabel(t.dueDate);
   return (
-    <div className="flex items-start gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.04] transition-colors">
+    <Link to={`/app/tasks/${t.id}`} title={t.title}
+      className="flex min-h-11 items-start gap-2 py-2 px-2 rounded-lg hover:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-cyan/40 transition-colors">
       <span className="w-2 h-2 rounded-full mt-[7px] flex-shrink-0"
         style={{ background: pc, boxShadow: pc !== "transparent" ? `0 0 6px ${pc}` : "none" }} />
       {t.parentTaskId && <CornerDownRight size={12} className="text-cyan/60 mt-0.5 flex-shrink-0" />}
       <div className="min-w-0 flex-1">
-        <div className={`text-[14px] leading-snug ${done ? "text-faint line-through" : "text-[#dbe8fa]"}`}>{t.title}</div>
-        <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px] text-faint">
+        <div className={`dashboard-item-title leading-snug truncate ${done ? "text-dim/80 line-through" : "text-[#dbe8fa]"}`}>{t.title}</div>
+        <div className="flex items-center gap-1.5 mt-0.5 font-mono dashboard-meta text-faint">
           {t.area && <span className="uppercase tracking-wide">{t.area}</span>}
           {t.priority && !done && <span style={{ color: pc }}>{t.priority}</span>}
           {due && <span className={due.cls}>{due.text}</span>}
           {t.agentCandidate && !done && <Bot size={12} className="text-purple" />}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
-function TaskColumn({ label, icon: Icon, accent, tasks, done, max = 12 }: {
-  label: string; icon: React.ElementType; accent: string; tasks: Task[]; done?: boolean; max?: number;
+function TaskColumn({ label, icon: Icon, accent, tasks, view, done, max = 12 }: {
+  label: string; icon: React.ElementType; accent: string; tasks: Task[]; view: string; done?: boolean; max?: number;
 }) {
   return (
     <div className="flex flex-col min-h-0 rounded-xl bg-panel2 border border-line overflow-hidden"
       style={{ borderTop: `2px solid ${accent}` }}>
-      <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0 border-b border-line">
+      <Link to={`/app/tasks?${view}`} className="flex min-h-11 items-center gap-2 px-3 py-2 flex-shrink-0 border-b border-line hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-cyan/40">
         <Icon size={15} style={{ color: accent }} />
         <span className="font-mono text-[12px] tracking-[1.5px] uppercase" style={{ color: accent }}>{label}</span>
         <span className="ml-auto font-display font-bold text-[16px]" style={{ color: accent }}>{tasks.length}</span>
-      </div>
+      </Link>
       <AutoScroll className="px-1.5 py-1">
         {tasks.length === 0 ? (
           <div className="text-faint font-mono text-[11px] text-center py-5">clear</div>
@@ -239,7 +245,7 @@ function TaskColumn({ label, icon: Icon, accent, tasks, done, max = 12 }: {
           <>
             {tasks.slice(0, max).map((t) => <TaskItem key={t.id} t={t} done={done} />)}
             {tasks.length > max && (
-              <div className="text-faint font-mono text-[11px] text-center py-1">+{tasks.length - max} more</div>
+              <Link to={`/app/tasks?${view}`} className="block text-faint hover:text-cyan font-mono dashboard-meta text-center py-2">+{tasks.length - max} more</Link>
             )}
           </>
         )}
@@ -263,28 +269,29 @@ function ActiveTaskRail({ tasks }: { tasks: Task[] }) {
 
   return (
     <div className="mx-3 mb-2 rounded-xl border border-cyan/20 bg-panel2 px-3 py-2 flex-shrink-0">
-      <div className="flex items-center gap-2 mb-1.5">
+      <Link to="/app/tasks?status=in_progress" className="flex min-h-11 items-center gap-2 -mx-1 px-1 mb-1 hover:bg-white/[0.035] focus:outline-none focus:ring-2 focus:ring-cyan/40 rounded-lg">
         <Zap size={13} className="text-cyan" />
         <span className="font-mono text-[12px] tracking-[2px] uppercase text-cyan">Active Tasks</span>
         <span className="font-display font-bold text-[15px] text-cyan">{tasks.length}</span>
         <span className="ml-auto font-mono text-[11px] text-faint">
           {tasks.length > 3 ? `top 3 / +${tasks.length - 3}` : "now / next"}
         </span>
-      </div>
+      </Link>
       <div className="grid grid-cols-3 gap-1.5">
         {tasks.slice(0, 3).map((t) => {
           const due = dueLabel(t.dueDate);
           const pc = PRIORITY_COLOR[t.priority ?? ""] ?? C.dim;
           return (
-            <div key={t.id} className="min-w-0 rounded-lg border border-line bg-[#070b14]/80 px-2.5 py-1.5">
+            <Link key={t.id} to={`/app/tasks/${t.id}`} title={t.title}
+              className="block min-w-0 rounded-lg border border-line bg-[#070b14]/80 px-2.5 py-1.5 hover:border-cyan/40 focus:outline-none focus:ring-2 focus:ring-cyan/40 transition-colors">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ background: pc, boxShadow: `0 0 6px ${pc}` }}
                 />
-                <span className="text-[13px] text-[#dbe8fa] truncate flex-1">{t.title}</span>
+                <span className="dashboard-item-title text-[#dbe8fa] truncate flex-1">{t.title}</span>
               </div>
-              <div className="flex items-center gap-2 mt-0.5 font-mono text-[10px] text-faint">
+              <div className="flex items-center gap-1.5 mt-0.5 font-mono dashboard-meta text-faint">
                 <span className="uppercase tracking-wide">{t.status.replace("_", " ")}</span>
                 {t.area && <span className="uppercase tracking-wide truncate">{t.area}</span>}
                 {!!t.subtaskCount && (
@@ -294,7 +301,7 @@ function ActiveTaskRail({ tasks }: { tasks: Task[] }) {
                 )}
                 {due && <span className={`${due.cls} ml-auto flex-shrink-0`}>{due.text}</span>}
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -314,13 +321,15 @@ function Ticker({ items }: { items: TickerItem[] }) {
       <div className="flex gap-10 whitespace-nowrap animate-ticker px-6">
         {loop.map((it, i) => {
           const c = TICKER_COLOR[it.type] ?? C.dim;
-          return (
-            <span key={i} className="flex items-center gap-2 text-[14px]">
+          return it.targetType && it.targetId && entityPath(it.targetType, it.targetId) ? (
+            <Link key={i} to={entityPath(it.targetType, it.targetId)!} className="flex items-center gap-2 dashboard-item-title hover:text-white focus:outline-none focus:underline">
               <span className="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded"
                 style={{ color: c, border: `1px solid ${c}66`, background: `${c}14` }}>{it.label}</span>
               <span className="text-dim">{it.text}</span>
-            </span>
-          );
+            </Link>
+            ) : (
+              <span key={i} className="flex items-center gap-2 dashboard-item-title"><span className="font-mono text-[10px] tracking-widest px-1.5 py-0.5 rounded" style={{ color: c, border: `1px solid ${c}66`, background: `${c}14` }}>{it.label}</span><span className="text-dim">{it.text}</span></span>
+            );
         })}
       </div>
     </div>
@@ -341,7 +350,7 @@ function AgentPanel({ state, actions, pending }: { state: AgentState; actions: A
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full animate-pulse-slow" style={{ background: C.lime, boxShadow: `0 0 8px ${C.lime}` }} />
-          <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">OpenClaw Agent</span>
+          <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">Gordon / OpenClaw</span>
         </div>
         <Link to="/app/agent" className="font-mono text-[11px] text-faint hover:text-lime flex items-center gap-1">
           center <ArrowRight size={12} />
@@ -364,17 +373,17 @@ function AgentPanel({ state, actions, pending }: { state: AgentState; actions: A
           </div>
           <div className="min-w-0">
             <div className="font-mono text-[12px] tracking-[2px]" style={{ color: c }}>{label}</div>
-            <div className="text-[13px] text-dim truncate max-w-[220px]">{latest ? latest.summary : "No recent activity"}</div>
+            <div className="dashboard-item-title text-dim truncate max-w-[240px]" title={latest?.summary}>{latest ? latest.summary : "No recent activity"}</div>
           </div>
         </div>
         <div className="mt-3 space-y-1.5">
           {actions.slice(0, 3).map((a) => (
-            <div key={a.id} className="flex items-center gap-2 text-[12px]">
+            <div key={a.id} className="flex items-center gap-1.5 dashboard-meta">
               <span className="font-mono text-[10px] text-purple uppercase tracking-wide flex-shrink-0">
                 {a.actionType.replace(/_/g, " ")}
               </span>
-              <span className="text-dim truncate flex-1">{a.summary}</span>
-              <span className="font-mono text-[10px] text-faint flex-shrink-0">{relativeTime(a.createdAt)}</span>
+              {entityPath(a.targetType, a.targetId) ? <Link to={entityPath(a.targetType, a.targetId)!} title={a.summary} className="text-dim hover:text-white truncate flex-1">{a.summary}</Link> : <span className="text-dim truncate flex-1">{a.summary}</span>}
+              <span className="font-mono dashboard-meta text-faint flex-shrink-0">{relativeTime(a.createdAt)}</span>
             </div>
           ))}
           {actions.length === 0 && <div className="text-faint font-mono text-[11px]">No agent actions yet</div>}
@@ -391,22 +400,24 @@ function DeadlineRow({ d }: { d: UpcomingDeadline }) {
   const due = dueLabel(d.dueDate);
   const pc = PRIORITY_COLOR[d.priority ?? ""] ?? C.dim;
   return (
-    <div className="flex items-center gap-2.5 py-2 border-b border-line last:border-0">
+    <Link to={d.kind === "project" ? `/app/projects/${d.id}` : `/app/tasks/${d.id}`} title={d.title}
+      className="flex min-h-11 items-center gap-2.5 py-2 border-b border-line last:border-0 hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-cyan/40 rounded">
       <Icon size={14} style={{ color: pc }} className="flex-shrink-0" />
-      <span className="text-[13px] text-dim truncate flex-1">{d.title}</span>
-      {due && <span className={`font-mono text-[12px] flex-shrink-0 ${due.cls}`}>{due.text}</span>}
-    </div>
+      <span className="dashboard-item-title text-dim truncate flex-1">{d.title}</span>
+      {due && <span className={`font-mono dashboard-meta flex-shrink-0 ${due.cls}`}>{due.text}</span>}
+    </Link>
   );
 }
 
 function IdeaRow({ i }: { i: Idea }) {
   const c = IDEA_STATUS_COLOR[i.status] ?? C.dim;
   return (
-    <div className="flex items-center gap-2.5 py-2 border-b border-line last:border-0">
+    <Link to={`/app/ideas/${i.id}`} title={i.title}
+      className="flex min-h-11 items-center gap-2.5 py-2 border-b border-line last:border-0 hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-purple/40 rounded">
       <Lightbulb size={14} className="text-purple flex-shrink-0" />
-      <span className="text-[13px] text-dim truncate flex-1">{i.title}</span>
-      <span className="font-mono text-[11px] flex-shrink-0" style={{ color: c }}>{i.status}</span>
-    </div>
+      <span className="dashboard-item-title text-dim truncate flex-1">{i.title}</span>
+      <span className="font-mono dashboard-meta flex-shrink-0" style={{ color: c }}>{i.status}</span>
+    </Link>
   );
 }
 
@@ -416,13 +427,15 @@ function ActivityRow({ n }: { n: Note }) {
     blocker: C.red, progress: C.cyan, decision: C.amber, agent_update: C.lime, note: C.faint,
   };
   return (
-    <div className="py-2 border-b border-line last:border-0 pl-2" style={{ borderLeft: `2px solid ${typeAccent[n.type] ?? C.faint}` }}>
-      <p className="text-[13px] text-[#dbe8fa] leading-snug line-clamp-2">{n.body}</p>
-      <div className="flex gap-2 mt-0.5 font-mono text-[11px]">
+    <Link to={entityPath(n.parentType, n.parentId) || "/app/activity"} title={n.body}
+      className="block py-2 border-b border-line last:border-0 pl-2 hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-purple/40 rounded"
+      style={{ borderLeft: `2px solid ${typeAccent[n.type] ?? C.faint}` }}>
+      <p className="dashboard-item-title text-[#dbe8fa] leading-snug line-clamp-2">{n.body}</p>
+      <div className="flex gap-2 mt-0.5 font-mono dashboard-meta">
         <span style={{ color: authorColor[n.createdBy] ?? C.faint }}>{n.createdBy}</span>
         <span className="text-faint">· {n.parentType} · {relativeTime(n.createdAt)}</span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -435,7 +448,7 @@ function AIInsight({ summaries }: { summaries: AISummary[] }) {
           <span className="w-2 h-2 rounded-full bg-pink animate-pulse-slow" style={{ boxShadow: `0 0 8px ${C.pink}` }} />
           <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">AI Insight</span>
         </div>
-        <p className="text-[13px] text-faint leading-relaxed">
+        <p className="dashboard-item-title text-faint leading-relaxed">
           Configure an AI provider in Settings, then generate summaries from the Agent Center.
         </p>
         <Link to="/app/settings" className="font-mono text-[12px] text-purple hover:text-pink mt-2 inline-flex items-center gap-1">
@@ -460,8 +473,8 @@ function AIInsight({ summaries }: { summaries: AISummary[] }) {
           </button>
         ))}
       </div>
-      <p className="text-[13px] text-dim leading-relaxed line-clamp-5">{s.content}</p>
-      <div className="font-mono text-[11px] text-faint mt-2">{s.provider} · {relativeTime(s.generatedAt)}</div>
+      <p className="dashboard-item-title text-dim leading-relaxed line-clamp-5">{s.content}</p>
+      <div className="font-mono dashboard-meta text-faint mt-2">{s.provider} · {relativeTime(s.generatedAt)}</div>
     </div>
   );
 }
@@ -577,12 +590,13 @@ export function Dashboard() {
           </span>
         </div>
         <div className="flex items-center gap-2.5 ml-auto">
-          <Kpi label="Projects" value={s?.activeProjects ?? 0} color={C.cyan} icon={FolderKanban} />
-          <Kpi label="Open Tasks" value={s?.openTasks ?? 0} color={C.blue} icon={ListTodo} />
-          <Kpi label="Due Today" value={s?.dueToday ?? 0} color={C.amber} icon={CalendarClock} alert />
-          <Kpi label="Overdue" value={s?.overdue ?? 0} color={C.red} icon={Flame} alert />
-          <Kpi label="Blocked" value={s?.blockedItems ?? 0} color={C.pink} icon={AlertTriangle} alert />
-          <Kpi label="Ideas" value={s?.ideas ?? 0} color={C.purple} icon={Lightbulb} />
+          <NotificationCenter compact />
+          <Kpi label="Projects" value={s?.activeProjects ?? 0} color={C.cyan} icon={FolderKanban} to="/app/projects" />
+          <Kpi label="Open Tasks" value={s?.openTasks ?? 0} color={C.blue} icon={ListTodo} to="/app/tasks?view=open" />
+          <Kpi label="Due Today" value={s?.dueToday ?? 0} color={C.amber} icon={CalendarClock} alert to="/app/tasks?view=due-today" />
+          <Kpi label="Overdue" value={s?.overdue ?? 0} color={C.red} icon={Flame} alert to="/app/tasks?view=overdue" />
+          <Kpi label="Blocked" value={s?.blockedItems ?? 0} color={C.pink} icon={AlertTriangle} alert to="/app/tasks?status=blocked" />
+          <Kpi label="Ideas" value={s?.ideas ?? 0} color={C.purple} icon={Lightbulb} to="/app/ideas" />
         </div>
       </header>
 
@@ -590,7 +604,7 @@ export function Dashboard() {
       {!reduced && <Ticker items={data?.ticker ?? []} />}
 
       {/* ── MAIN ───────────────────────────────────────────────────────────── */}
-      <main className="flex-1 min-h-0 grid gap-3 p-3" style={{ gridTemplateColumns: "340px 1fr 360px" }}>
+      <main className="dashboard-grid flex-1 min-h-0 grid gap-3 p-3">
 
         {/* LEFT: projects + activity */}
         <div className="flex flex-col gap-3 min-h-0">
@@ -607,23 +621,23 @@ export function Dashboard() {
         {/* CENTER: task command board */}
         <div className="card flex flex-col min-h-0">
           <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2 flex-shrink-0">
-            <div className="flex items-center gap-2">
+            <Link to="/app/tasks" className="flex min-h-11 items-center gap-2 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan/40 rounded-lg px-1 -mx-1">
               <span className="w-2 h-2 rounded-full animate-pulse-slow" style={{ background: C.blue, boxShadow: `0 0 8px ${C.blue}` }} />
               <span className="font-mono text-[13px] tracking-[2.5px] uppercase text-dim">Task Command Board</span>
-            </div>
+            </Link>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-[12px] text-faint">{s?.openTasks ?? 0} open · {s?.completedToday ?? 0} done today</span>
+              <Link to="/app/tasks?view=open" className="font-mono text-[12px] text-faint hover:text-cyan focus:outline-none focus:underline">{s?.openTasks ?? 0} open · {s?.completedToday ?? 0} done today</Link>
               <AllLink to="/app/tasks" color={C.blue} />
             </div>
           </div>
           <ActiveTaskRail tasks={activeTasks} />
           <div className="flex-1 min-h-0 grid grid-cols-3 grid-rows-2 gap-2.5 px-3 pb-3">
-            <TaskColumn label="In Progress" icon={Activity} accent={C.cyan} tasks={tasks?.inProgress ?? []} />
-            <TaskColumn label="Due Today" icon={CalendarClock} accent={C.amber} tasks={tasks?.dueToday ?? []} />
-            <TaskColumn label="Blocked" icon={AlertTriangle} accent={C.red} tasks={tasks?.blocked ?? []} />
-            <TaskColumn label="To Do" icon={ListTodo} accent={C.blue} tasks={tasks?.todo ?? []} />
-            <TaskColumn label="Waiting" icon={Hourglass} accent={C.purple} tasks={tasks?.waiting ?? []} />
-            <TaskColumn label="Done Today" icon={CheckCircle2} accent={C.lime} tasks={tasks?.completedToday ?? []} done />
+            <TaskColumn label="In Progress" icon={Activity} accent={C.cyan} tasks={tasks?.inProgress ?? []} view="status=in_progress" />
+            <TaskColumn label="Due Today" icon={CalendarClock} accent={C.amber} tasks={tasks?.dueToday ?? []} view="view=due-today" />
+            <TaskColumn label="Blocked" icon={AlertTriangle} accent={C.red} tasks={tasks?.blocked ?? []} view="status=blocked" />
+            <TaskColumn label="To Do" icon={ListTodo} accent={C.blue} tasks={tasks?.todo ?? []} view="status=todo" />
+            <TaskColumn label="Waiting" icon={Hourglass} accent={C.purple} tasks={tasks?.waiting ?? []} view="status=waiting" />
+            <TaskColumn label="Done Today" icon={CheckCircle2} accent={C.lime} tasks={tasks?.completedToday ?? []} view="status=done" done />
           </div>
         </div>
 

@@ -1,6 +1,9 @@
 # Live Dashboard
 
-Route: `http://localhost:8787/dashboard` — fullscreen, read-only, designed for a dedicated screen. See LOCAL_SETUP.md for kiosk mode.
+Route: `http://localhost:8787/dashboard` — fullscreen and mutation-free,
+designed for a dedicated screen. Entity-backed rows are navigable into the
+control panel; the dashboard itself never changes task data. See LOCAL_SETUP.md
+for kiosk mode.
 
 ## Layout zones
 
@@ -12,7 +15,7 @@ Route: `http://localhost:8787/dashboard` — fullscreen, read-only, designed for
 │ SCROLLING TICKER: urgent / overdue / blocked / agent / idea / updated       │
 ├─────────────────┬──────────────────────────────────┬─────────────────────────┤
 │ LEFT            │ CENTER — TASK COMMAND BOARD       │ RIGHT                   │
-│ ACTIVE PROJECTS │ 6 status columns (3 × 2):         │ OPENCLAW AGENT          │
+│ ACTIVE PROJECTS │ 6 status columns (3 × 2):         │ GORDON / OPENCLAW       │
 │  icon·progress· │   In Progress · Due Today ·       │  avatar · state ·       │
 │  status · due   │   Blocked / To Do · Waiting ·     │  recent actions         │
 ├─────────────────┤ main-task rail + Done Today       ├─────────────────────────┤
@@ -26,6 +29,21 @@ Route: `http://localhost:8787/dashboard` — fullscreen, read-only, designed for
 
 Text is sized for at-a-glance reading on a wall display, and every region
 scrolls independently inside a fixed full-screen frame (no page-level scroll).
+Task titles and right-rail content use responsive 15–16px display text with
+12–13px metadata so the board stays readable without expanding row density.
+
+## Navigation
+
+Tasks, projects, ideas, deadlines, activity entries, ticker entries, and Gordon
+actions with entity references link to stable control-panel detail routes:
+
+- `/app/tasks/:taskId`
+- `/app/projects/:projectId`
+- `/app/ideas/:ideaId`
+
+KPI tiles and command-board column headers open URL-driven filtered lists.
+These are normal links with keyboard focus behavior and work after refresh or
+bookmarking.
 
 ## Data source
 
@@ -70,6 +88,12 @@ AI summaries are fetched separately via `GET /api/v1/ai/summaries` and displayed
 2. **Polling fallback** — every `dashboardRefreshSeconds` (default 30s). This always runs, so the dashboard stays current even if SSE drops.
 
 Pending approvals counter in the status bar increments in real time on `approval_requested` SSE events.
+
+`notification_created` events drive the global in-app pop-up stack and the
+dashboard notification bell. Gordon task completions, blockers, approval
+requests, terminal integration failures, and chat replies are persisted until
+read. Optional browser notifications run only while a Key of Solomon tab is
+open and hidden.
 
 ## Animation settings
 

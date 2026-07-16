@@ -12,6 +12,9 @@ Authorization: Bearer <LOCAL_API_TOKEN>
 
 (`LOCAL_API_TOKEN` is set in `.env`. SSE connections may pass `?token=` instead, since EventSource cannot set headers.)
 
+Gordon uses the separate `GORDON_API_TOKEN`, which is accepted only under
+`/agent` and is always audited as `Gordon`.
+
 **Response envelope** — every response is JSON:
 
 ```json
@@ -48,6 +51,8 @@ Authorization: Bearer <LOCAL_API_TOKEN>
 | `idea_updated` | an idea changes |
 | `agent_action` | agent logs an action |
 | `approval_requested` | agent submits an approval request |
+| `approval_resolved` | local owner approves or rejects an agent request |
+| `notification_created` | a persistent in-app notification is created |
 | `settings-changed` | settings patched |
 | `ping` | every 25s keepalive |
 
@@ -146,15 +151,42 @@ archive the children first.
 | GET | `/agent/actions` | List, newest first. Filters: `agentName`, `actionType`, `limit` |
 | POST | `/agent/actions` | Append entry. Required: `summary` |
 
+The agent-safe router also provides scoped entity details, triage context,
+task/subtask mutations, reminder logging, and approval wrappers. See
+[AGENT_API.md](./AGENT_API.md).
+
 ## Agent Approvals *(Beta 2)*
+
+Approval responses include a safe `target` snapshot (`type`, `id`, `title`,
+`status`, and `exists`) so the review UI can explain the action without trusting
+the proposed payload. Resolved approvals retain an optional `resolutionNote`.
 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/approvals` | All approvals. Filter: `status` |
 | GET | `/approvals/pending` | Pending approvals only (array) |
 | POST | `/approvals` | Create an approval request. Required: `agentName`, `actionType`, `reason` |
-| POST | `/approvals/:id/approve` | Approve. Optional body: `resolvedBy` |
-| POST | `/approvals/:id/reject` | Reject. Optional body: `resolvedBy` |
+| POST | `/approvals/:id/approve` | Approve. Optional body: `resolvedBy`, `note` |
+| POST | `/approvals/:id/reject` | Reject. Optional body: `resolvedBy`, `note` |
+
+Resolution is idempotently guarded: a second decision against an already
+resolved approval is rejected. Resolving emits `approval_resolved` over SSE and
+queues an immediate ID-only Gordon wake event.
+
+## Notifications
+
+Notifications are persistent audit-friendly alerts. They are never hard-deleted;
+marking one read only sets its `readAt` timestamp.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/notifications?limit=50&unread=true\|false` | Newest notifications, optionally filtered by unread state |
+| POST | `/notifications/:id/read` | Mark one notification read |
+| POST | `/notifications/read-all` | Mark every unread notification read |
+
+Notifications are generated for verified Gordon completions, Gordon blockers,
+new approval requests, terminal integration failures, and completed Gordon chat
+replies. A dedupe key prevents duplicate alerts for the same transition.
 
 ## AI Summaries *(Beta 2)*
 
@@ -204,7 +236,10 @@ with the raw text as title. `classified: false` and `aiError` are set in that ca
 
 Patchable keys: `dashboardRefreshSeconds`, `animationSpeed`, `reducedMotion`,
 `defaultDashboardMode`, `aiProvider`, `aiApiKey`, `aiModel`, `aiBaseUrl`,
-`captureAutoClassify`, `captureAutoBreakdown`.
+`captureAutoClassify`, `captureAutoBreakdown`, `browserNotificationsEnabled`.
+
+Browser notification permission is requested only from the Settings UI after an
+explicit user action. Browser notifications require an open Key of Solomon tab.
 
 ## Data export / import
 
@@ -216,3 +251,31 @@ Patchable keys: `dashboardRefreshSeconds`, `animationSpeed`, `reducedMotion`,
 ## Webhooks
 
 See [WEBHOOKS.md](./WEBHOOKS.md). `POST /webhooks/task`, `/webhooks/idea`, `/webhooks/note`, and `/webhooks/agent-update` are live.
+
+## Gordon / OpenClaw integration
+
+These endpoints require the full local token; the scoped Gordon token is rejected.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/integrations/openclaw/status` | Enabled/configured state, masked host, queue counts, latest redacted delivery result |
+| POST | `/integrations/openclaw/test` | Queue and immediately attempt a metadata-only test event |
+| GET | `/integrations/openclaw/chat/messages?limit=100` | Persisted Gordon conversation, oldest first |
+| POST | `/integrations/openclaw/chat/stream` | Send a user turn or retry a failed assistant turn; returns normalized SSE |
+
+The chat stream emits `message`, `delta`, `done`, and `error` events. The backend
+always selects `openclaw/main`, uses the stable Gordon session key, and does not
+accept browser-selected agents, models, system prompts, tools, or headers. The
+OpenClaw Gateway token remains server-only. Inputs are limited to 8,000
+characters and concurrent turns return `409 CHAT_BUSY`.
+
+## Stable UI detail routes
+
+Entity-backed dashboard links use bookmarkable control-panel routes:
+
+- `/app/tasks/:taskId`
+- `/app/projects/:projectId`
+- `/app/ideas/:ideaId`
+
+The dashboard itself remains mutation-free; these routes open the existing
+editable control-panel detail surfaces.

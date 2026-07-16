@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Plus, Check, Archive, Bot, ChevronDown, ChevronRight,
   CornerDownRight, ListTree, ArrowUpLeft,
@@ -14,7 +15,7 @@ const STATUSES = ["", "todo", "in_progress", "waiting", "blocked", "done", "arch
 const PRIORITIES = ["", "low", "medium", "high", "urgent"];
 const AREAS = ["", "work", "personal", "home", "coding", "business", "errands", "health", "finance"];
 const SOURCE_LABELS: Record<string, string> = {
-  agent: "Hermes",
+  agent: "Gordon",
   fast_capture: "Fast Capture",
   embedded_ai: "Embedded AI",
   webhook: "Webhook",
@@ -363,9 +364,17 @@ function arrangeTaskRows(tasks: Task[], collapsed: Set<string>) {
 }
 
 export function Tasks() {
+  const navigate = useNavigate();
+  const { taskId } = useParams();
+  const [searchParams] = useSearchParams();
+  const view = searchParams.get("view") || "";
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [filters, setFilters] = useState({ q: "", status: "", area: "", priority: "" });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    q: searchParams.get("q") || "",
+    status: searchParams.get("status") || "",
+    area: searchParams.get("area") || "",
+    priority: searchParams.get("priority") || "",
+  });
   const [creating, setCreating] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
@@ -385,9 +394,18 @@ export function Tasks() {
 
   useEffect(() => { load(); }, [load]);
 
-  const rows = useMemo(() => arrangeTaskRows(tasks, collapsed), [tasks, collapsed]);
-  const mainTaskCount = tasks.filter((task) => !task.parentTaskId).length;
-  const subtaskCount = tasks.length - mainTaskCount;
+  const visibleTasks = useMemo(() => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const end = start + 86_400_000;
+    if (view === "open") return tasks.filter((task) => !["done", "archived"].includes(task.status));
+    if (view === "due-today") return tasks.filter((task) => task.dueDate && !["done", "archived"].includes(task.status) && new Date(task.dueDate).getTime() >= start && new Date(task.dueDate).getTime() < end);
+    if (view === "overdue") return tasks.filter((task) => task.dueDate && !["done", "archived"].includes(task.status) && new Date(task.dueDate).getTime() < start);
+    return tasks;
+  }, [tasks, view]);
+  const rows = useMemo(() => arrangeTaskRows(visibleTasks, collapsed), [visibleTasks, collapsed]);
+  const mainTaskCount = visibleTasks.filter((task) => !task.parentTaskId).length;
+  const subtaskCount = visibleTasks.length - mainTaskCount;
 
   function toggleCollapsed(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -441,7 +459,7 @@ export function Tasks() {
               className={`card px-4 py-3 cursor-pointer hover:border-line2 transition-colors flex items-center gap-3
                 ${t.status === "blocked" ? "border-nred/25" : t.status === "done" ? "opacity-60" : ""}
                 ${isOverdue(t.dueDate) && t.status !== "done" ? "border-amber/30" : ""}`}
-              onClick={() => setSelected(t.id)}
+              onClick={() => navigate(`/app/tasks/${t.id}`)}
             >
               {depth === 0 && (t.subtaskCount ?? 0) > 0 ? (
                 <button
@@ -495,7 +513,7 @@ export function Tasks() {
             </div>
             </div>
           ))}
-          {tasks.length === 0 && (
+          {visibleTasks.length === 0 && (
             <div className="text-center py-12 text-dim font-mono text-sm">No tasks found</div>
           )}
         </div>
@@ -504,13 +522,13 @@ export function Tasks() {
       <Modal open={creating} onClose={() => setCreating(false)} title="New Task" wide>
         <TaskForm onSave={() => { setCreating(false); load(); }} onClose={() => setCreating(false)} />
       </Modal>
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Task Details" wide>
-        {selected && (
+      <Modal open={!!taskId} onClose={() => navigate("/app/tasks")} title="Task Details" wide>
+        {taskId && (
           <TaskDetail
-            id={selected}
-            onClose={() => setSelected(null)}
+            id={taskId}
+            onClose={() => navigate("/app/tasks")}
             onUpdate={load}
-            onNavigate={setSelected}
+            onNavigate={(id) => navigate(`/app/tasks/${id}`)}
           />
         )}
       </Modal>

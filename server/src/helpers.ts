@@ -29,9 +29,14 @@ export function now(): string {
 /* ---------- auth ---------- */
 
 const TOKEN = process.env.LOCAL_API_TOKEN || "neondeck-local-token-change-me";
+const GORDON_TOKEN = process.env.GORDON_API_TOKEN || "";
 
 export function getToken() {
   return TOKEN;
+}
+
+export function getGordonToken() {
+  return GORDON_TOKEN;
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
@@ -40,7 +45,18 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const header = req.headers.authorization || "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : null;
   const queryToken = typeof req.query.token === "string" ? req.query.token : null;
-  if (bearer === TOKEN || queryToken === TOKEN) return next();
+  if (bearer === TOKEN || queryToken === TOKEN) {
+    (req as any).authScope = "full";
+    return next();
+  }
+  if (GORDON_TOKEN && bearer === GORDON_TOKEN) {
+    const agentPath = req.path === "/agent" || req.path.startsWith("/agent/");
+    if (!agentPath) {
+      return fail(res, 403, "FORBIDDEN", "The Gordon token is limited to /api/v1/agent endpoints.");
+    }
+    (req as any).authScope = "gordon";
+    return next();
+  }
   return fail(res, 401, "UNAUTHORIZED", "Missing or invalid API token. Send 'Authorization: Bearer <LOCAL_API_TOKEN>'.");
 }
 
@@ -56,7 +72,7 @@ export const PARENT_TYPES = ["project", "task", "idea"] as const;
 export const ATTACH_PARENTS = ["project", "task", "idea", "note"] as const;
 export const ATTACH_TYPES = ["link", "file", "image", "document", "other"] as const;
 export const CREATED_BY = ["user", "agent", "system"] as const;
-export const ACTION_TYPES = ["create", "update", "status_change", "add_note", "convert_idea", "dashboard_request", "error"] as const;
+export const ACTION_TYPES = ["create", "update", "status_change", "add_note", "convert_idea", "dashboard_request", "reminder", "error"] as const;
 
 export function requireString(
   body: Record<string, unknown>,

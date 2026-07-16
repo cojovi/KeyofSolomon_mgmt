@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Plus, ArrowRight, Archive, Sparkles, Star } from "lucide-react";
 import { api } from "../lib/api";
 import type { Idea } from "../lib/types";
@@ -78,10 +79,18 @@ function IdeaForm({ idea, onSave, onClose }: { idea?: Idea; onSave: () => void; 
   );
 }
 
+function IdeaDetail({ id, onSave, onClose }: { id: string; onSave: () => void; onClose: () => void }) {
+  const [idea, setIdea] = useState<Idea | null>(null);
+  useEffect(() => { api.get<Idea>(`/ideas/${id}`).then(setIdea).catch(() => setIdea(null)); }, [id]);
+  if (!idea) return <p className="text-dim font-mono text-sm animate-pulse">Loading idea…</p>;
+  return <IdeaForm idea={idea} onSave={onSave} onClose={onClose} />;
+}
+
 export function Ideas() {
+  const navigate = useNavigate();
+  const { ideaId } = useParams();
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [filters, setFilters] = useState({ q: "", status: "", category: "" });
-  const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState<string | null>(null);
@@ -147,7 +156,7 @@ export function Ideas() {
         <div className="grid grid-cols-1 gap-3">
           {ideas.map((i) => (
             <div key={i.id} className="card p-4 cursor-pointer hover:border-line2 transition-colors"
-              onClick={() => setSelected(i.id)}>
+              onClick={() => navigate(`/app/ideas/${i.id}`)}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -187,13 +196,8 @@ export function Ideas() {
       <Modal open={creating} onClose={() => setCreating(false)} title="Capture Idea" wide>
         <IdeaForm onSave={() => { setCreating(false); load(); }} onClose={() => setCreating(false)} />
       </Modal>
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Idea Details" wide>
-        {selected && (() => {
-          const idea = ideas.find((i) => i.id === selected);
-          return idea ? (
-            <IdeaForm idea={idea} onSave={() => { setSelected(null); load(); }} onClose={() => setSelected(null)} />
-          ) : null;
-        })()}
+      <Modal open={!!ideaId} onClose={() => navigate("/app/ideas")} title="Idea Details" wide>
+        {ideaId && <IdeaDetail id={ideaId} onSave={() => { navigate("/app/ideas"); load(); }} onClose={() => navigate("/app/ideas")} />}
       </Modal>
     </div>
   );

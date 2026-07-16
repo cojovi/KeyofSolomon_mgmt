@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Save, Eye, EyeOff } from "lucide-react";
+import { Bell, Save, Eye, EyeOff } from "lucide-react";
 import { api } from "../lib/api";
 import type { Settings } from "../lib/types";
 import { useToast } from "../components/ui/Toast";
@@ -37,6 +37,7 @@ export function SettingsPage() {
     try {
       const saved = await api.patch<Settings>("/settings", settings);
       setSettings(saved);
+      window.dispatchEvent(new CustomEvent("browser-notification-setting-changed", { detail: saved.browserNotificationsEnabled === "true" }));
       toast("Settings saved");
     } catch (e: any) { toast(e.message, true); }
     finally { setSaving(false); }
@@ -44,6 +45,15 @@ export function SettingsPage() {
 
   const provider = settings.aiProvider ?? "none";
   const modelOptions = PROVIDER_MODELS[provider] ?? [];
+
+  async function enableBrowserNotifications() {
+    if (!("Notification" in window)) { toast("This browser does not support desktop notifications", true); return; }
+    const permission = await Notification.requestPermission();
+    const enabled = permission === "granted";
+    set("browserNotificationsEnabled", enabled ? "true" : "false");
+    window.dispatchEvent(new CustomEvent("browser-notification-setting-changed", { detail: enabled }));
+    toast(enabled ? "Browser notifications enabled" : "Notification permission was not granted", !enabled);
+  }
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -72,6 +82,22 @@ export function SettingsPage() {
             onChange={(e) => set("reducedMotion", e.target.checked ? "true" : "false")} />
           <span className="text-sm text-dim">Reduced motion</span>
         </label>
+      </section>
+
+      <section className="card p-6 space-y-4">
+        <div className="zone-title mb-1"><span className="zone-dot bg-amber" />Notifications</div>
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-line p-4">
+          <div className="flex items-start gap-3">
+            <Bell size={18} className="text-amber mt-0.5 flex-shrink-0" />
+            <div><p className="text-sm font-semibold text-[#e6f2ff]">Browser notifications</p><p className="text-xs text-dim mt-1">Show task completions, approval requests, integration failures, and Gordon replies when this tab is open but hidden.</p></div>
+          </div>
+          {settings.browserNotificationsEnabled === "true" ? (
+            <button onClick={() => { set("browserNotificationsEnabled", "false"); window.dispatchEvent(new CustomEvent("browser-notification-setting-changed", { detail: false })); }} className="btn-ghost text-xs">Disable</button>
+          ) : (
+            <button onClick={enableBrowserNotifications} className="btn-ghost text-xs">Enable</button>
+          )}
+        </div>
+        <p className="font-mono text-[10px] text-faint">Permission is requested only when you click Enable. Notifications cannot appear after every Key of Solomon tab has been closed.</p>
       </section>
 
       {/* AI Provider */}
@@ -162,6 +188,7 @@ export function SettingsPage() {
         <div className="font-mono text-sm space-y-2 text-dim">
           <div><span className="text-faint">Base URL:</span> <span className="text-cyan">http://localhost:8787/api/v1</span></div>
           <div><span className="text-faint">Auth:</span> <span className="text-[#dbe8fa]">Authorization: Bearer &lt;LOCAL_API_TOKEN&gt;</span></div>
+          <div><span className="text-faint">Gordon:</span> <span className="text-lime">separate GORDON_API_TOKEN · /agent only</span></div>
           <div><span className="text-faint">Token:</span> <span className="text-amber">set in .env file</span></div>
           <div><span className="text-faint">Docs:</span> <span className="text-purple">./docs/API.md · ./docs/AGENT_API.md</span></div>
         </div>

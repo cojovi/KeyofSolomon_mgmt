@@ -5,6 +5,7 @@ Key of Solomon is a **local-first task / project / idea command center** with tw
 1. **Control Panel** (`/app`) — create, edit, search, filter, and manage everything.
 2. **Live Dashboard** (`/dashboard`) — fullscreen, animated, read-only command-center view designed to run on a dedicated screen.
 3. **Fast Capture** (`/capture`) — one-key drop zone for raw thoughts. AI classifies them automatically.
+4. **Agent Center** (`/app/agent`) — Gordon health, informed approvals, persistent streaming chat, notifications, and audit history.
 
 It also exposes a clean, documented REST API with a dedicated **agent-safe API** so a local AI agent (OpenClaw or similar) can create tasks, capture ideas, approve or reject pending actions, add progress notes, and log every move it makes.
 
@@ -46,11 +47,12 @@ npm run dev:frontend     # Vite on :5173 (HMR, proxies /api → :8787)
 - Projects, tasks, and ideas with full status lifecycles, priorities, tags, due dates
 - One-level task hierarchy with main-task progress, collapsible subtasks, and guarded completion
 - Fast Capture: type it, press Enter, AI classifies it and can break multi-step outcomes into subtasks
-- Enforced AI ownership: embedded AI structures intake; Hermes executes and deliberately extends plans
-- Agent Approval System: safe actions run immediately; destructive actions require user approval
+- Enforced AI ownership: embedded AI structures intake; Gordon executes and deliberately extends plans
+- Agent Approval System: safe actions run immediately; gated actions show an entity snapshot, proposed changes, and decision notes before approval
 - AI Summaries: 5 summary types (Today's Focus, What's Blocked, Week Progress, Ideas to Revisit, Agent Suggestions) via Anthropic, OpenAI, OpenRouter, or local Ollama
-- Live dashboard: scrolling ticker, animated project cards, task grid, notes feed, agent avatar (4 states), AI summaries panel
-- Agent Command Center: approve/reject pending actions, view agent state, generate summaries
+- Live dashboard: readable command-board typography, stable entity deep links, scrolling ticker, task grid, activity, and AI summaries
+- Agent Center: webhook/chat health, Gordon activity, effective approvals, persisted streaming chat, candidates, summaries, and audit trail
+- Persistent in-app notifications with actionable pop-ups, history, unread bell, and opt-in browser notifications
 - Realtime updates via Server-Sent Events
 - Soft-delete everywhere — nothing important is hard-deleted
 
@@ -69,7 +71,7 @@ The backend serves the compiled React SPA from `frontend/dist/` automatically �
 | File | Contents |
 |---|---|
 | [LOCAL_SETUP.md](./LOCAL_SETUP.md) | Install, env vars, frontend build, kiosk mode |
-| [HERMES_AGENT_BRIEF.md](./HERMES_AGENT_BRIEF.md) | Short agent operating brief for Hermes-compatible agents |
+| [GORDON_OPENCLAW_AGENT_BRIEF.md](./GORDON_OPENCLAW_AGENT_BRIEF.md) | Gordon / OpenClaw operating brief and reminder cadence |
 | [DATA_MODEL.md](./DATA_MODEL.md) | Every entity, field, and status (including Beta 2 additions) |
 | [API.md](./API.md) | All standard REST endpoints |
 | [AGENT_API.md](./AGENT_API.md) | The agent-safe API — **read this if you are an AI agent** |
@@ -82,5 +84,6 @@ The backend serves the compiled React SPA from `frontend/dist/` automatically �
 
 - Single user, localhost-first. One shared bearer token.
 - Attachments are links/file paths only; no binary file upload.
-- No recurring tasks, reminders, or push notifications.
-- Agent approval payloads are logged but agents cannot currently auto-execute approved actions — they receive the approval event via SSE and must re-call the endpoint.
+- No native recurring task entity; Gordon's OpenClaw cron provides morning and late-day reviews.
+- Approval resolution authorizes only the proposed action; Gordon receives the resolution wake and must re-call the gated endpoint with the approval ID.
+- Browser notifications require an open Key of Solomon tab; background push while fully closed is not implemented.
